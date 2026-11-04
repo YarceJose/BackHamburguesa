@@ -1,7 +1,7 @@
-# Secretos
+# Secrets
 .env
 
-# Build de .NET
+# .NET build output
 **/bin/
 **/obj/
 

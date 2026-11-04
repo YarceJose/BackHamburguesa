@@ -5,7 +5,7 @@ namespace Application.Mediator;
 
 public sealed class Mediator(IServiceProvider serviceProvider) : IMediator
 {
-    // Un wrapper genérico por tipo de petición: la reflexión ocurre una sola vez.
+    // One generic wrapper per request type: reflection happens only once.
     private static readonly ConcurrentDictionary<Type, RequestHandlerWrapper> Wrappers = new();
 
     public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default)
@@ -34,11 +34,11 @@ public sealed class Mediator(IServiceProvider serviceProvider) : IMediator
         {
             var typed = (TRequest)request;
             var handler = sp.GetService<IRequestHandler<TRequest, TResponse>>()
-                ?? throw new InvalidOperationException($"No hay handler registrado para {typeof(TRequest).Name}.");
+                ?? throw new InvalidOperationException($"No handler registered for {typeof(TRequest).Name}.");
 
             RequestHandlerDelegate<TResponse> pipeline = () => handler.Handle(typed, ct);
 
-            // El primer behavior registrado queda por fuera (se ejecuta primero).
+            // The first registered behavior ends up outermost (runs first).
             foreach (var behavior in sp.GetServices<IPipelineBehavior<TRequest, TResponse>>().Reverse())
             {
                 var next = pipeline;

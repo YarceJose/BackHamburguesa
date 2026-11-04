@@ -4,7 +4,7 @@ namespace Domain.Ports;
 
 public sealed record AccessToken(string Token, DateTime ExpiresAt);
 
-/// <summary>Puerto para emitir tokens de acceso (implementado con JWT en Infrastructure).</summary>
+/// <summary>Port that issues access tokens (implemented with JWT in Infrastructure).</summary>
 public interface IToken
 {
     AccessToken GenerateToken(User user);

@@ -5,8 +5,8 @@ using AppValidationException = Application.Exceptions.ValidationException;
 namespace Application.Behaviors;
 
 /// <summary>
-/// Valida las DataAnnotations de la petición (y de los DTOs que contenga) antes de llegar al handler,
-/// sin importar quién la envíe: un controlador, n8n o un proceso en segundo plano.
+/// Validates the request's DataAnnotations (and those of the DTOs it carries) before it reaches the handler,
+/// no matter who sends it: a controller, n8n or a background job.
 /// </summary>
 public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -16,7 +16,7 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
         var errors = new Dictionary<string, string[]>();
         Collect(request, prefix: null, errors);
 
-        // Un nivel más: DTOs anidados dentro del comando (p. ej. UpdateUserCommand.Data)
+        // One level deeper: DTOs nested in the command (e.g. UpdateUserCommand.Data)
         foreach (var prop in typeof(TRequest).GetProperties())
         {
             if (prop.PropertyType.Namespace?.StartsWith("Application.DTOs") == true && prop.GetValue(request) is { } dto)
@@ -39,7 +39,7 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
         foreach (var member in result.MemberNames.DefaultIfEmpty(string.Empty))
         {
             var key = prefix is null ? member : $"{prefix}.{member}";
-            errors[key] = [.. errors.GetValueOrDefault(key, []), result.ErrorMessage ?? "Valor inválido."];
+            errors[key] = [.. errors.GetValueOrDefault(key, []), result.ErrorMessage ?? "Invalid value."];
         }
     }
 }

@@ -25,6 +25,12 @@ public class ProductRepository : IProductRepository
     public async Task<List<Product>> GetAllAsync(CancellationToken ct) =>
         await _context.Products.ToListAsync(ct);
 
+    public Task<List<Product>> GetActiveAsync(CancellationToken ct) =>
+        _context.Products.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Category).ThenBy(p => p.Name).ToListAsync(ct);
+
+    public Task<List<Product>> GetActiveByIdsAsync(IReadOnlyCollection<int> ids, CancellationToken ct) =>
+        _context.Products.AsNoTracking().Where(p => p.IsActive && ids.Contains(p.Id)).ToListAsync(ct);
+
     public Task SaveChangesAsync(CancellationToken ct) =>
         _context.SaveChangesAsync(ct);
 }

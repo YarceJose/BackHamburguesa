@@ -1,43 +1,137 @@
-# Con Docker: http://localhost:8080 — con `dotnet run`: http://localhost:5043
+# Docker: http://localhost:8080 — `dotnet run`: http://localhost:5043
 @Api_HostAddress = http://localhost:8080
-@token = pega-aqui-el-token-del-login
-@n8nKey = pega-aqui-N8N_API_KEY-del-.env
+@token = paste-the-login-token-here
+@n8nKey = paste-N8N_API_KEY-from-.env
 
-### Login del personal (Admin, Cook, Delivery)
+### ---------- Staff sign-in (admin, cook, delivery): username + password ----------
 POST {{Api_HostAddress}}/api/auth/login
 Content-Type: application/json
 
-{ "email": "admin@hamburguesa.local", "password": "ADMIN_PASSWORD-del-.env" }
+{ "username": "admin", "password": "ADMIN_PASSWORD-from-.env" }
 
-### Mi perfil
+### Current user profile
 GET {{Api_HostAddress}}/api/auth/me
 Authorization: Bearer {{token}}
 
-### Listar usuarios (solo Admin) — filtros opcionales ?role=Cook&includeInactive=true
-GET {{Api_HostAddress}}/api/users
+### ---------- Public: store, menu, sectors, where to pay ----------
+GET {{Api_HostAddress}}/api/store/status
+
+###
+GET {{Api_HostAddress}}/api/store/menu
+
+###
+GET {{Api_HostAddress}}/api/store/sectors
+
+###
+GET {{Api_HostAddress}}/api/store/payment-accounts
+
+### ---------- Customer order (no sign-in) ----------
+# Cash: goes straight to the kitchen. cashAmount = the bill they will pay with (optional)
+POST {{Api_HostAddress}}/api/orders
+Content-Type: application/json
+
+{
+  "customerName": "Ana Cliente",
+  "customerPhone": "3009998877",
+  "sectorId": 1,
+  "otherSector": null,
+  "items": [ { "productId": 1, "quantity": 2 } ],
+  "paymentMethod": "Cash",
+  "cashAmount": 50000
+}
+
+### Transfer: waits for the receipt; sector not in the list goes in otherSector
+POST {{Api_HostAddress}}/api/orders
+Content-Type: application/json
+
+{
+  "customerName": "Pedro Pérez",
+  "customerPhone": "3111111111",
+  "sectorId": null,
+  "otherSector": "Vereda San José, casa azul junto a la escuela",
+  "items": [ { "productId": 4, "quantity": 1 } ],
+  "paymentMethod": "Transfer",
+  "cashAmount": null
+}
+
+### Follow an order by its code
+GET {{Api_HostAddress}}/api/orders/track/ABC123
+
+### ---------- Staff ----------
+GET {{Api_HostAddress}}/api/orders/board
 Authorization: Bearer {{token}}
 
-### Crear cocinero (Cook) / domiciliario (Delivery) / admin (Admin)
+### Kitchen: start / "Salió de cocina"
+POST {{Api_HostAddress}}/api/orders/1/start
+Authorization: Bearer {{token}}
+
+###
+POST {{Api_HostAddress}}/api/orders/1/left-kitchen
+Authorization: Bearer {{token}}
+
+### Delivery: "Lo tengo" / "Entregado"
+POST {{Api_HostAddress}}/api/orders/1/picked-up
+Authorization: Bearer {{token}}
+
+###
+POST {{Api_HostAddress}}/api/orders/1/delivered
+Authorization: Bearer {{token}}
+
+### ---------- Admin ----------
+POST {{Api_HostAddress}}/api/orders/2/payment/approve
+Authorization: Bearer {{token}}
+
+###
+POST {{Api_HostAddress}}/api/orders/2/payment/reject
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "reason": "El valor no coincide con el total" }
+
+### Store rules: schedule (Colombia time), load-based delay, capacity, alerts
+PUT {{Api_HostAddress}}/api/store/settings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "isOpen": true,
+  "opensAt": "16:00:00",
+  "closesAt": "23:00:00",
+  "openDays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  "basePrepMinutes": 25,
+  "ordersBeforeDelay": 5,
+  "extraMinutesPerOrder": 5,
+  "maxActiveOrders": 20,
+  "alertAfterMinutes": 30,
+  "escalateAfterMinutes": 5,
+  "paymentTimeoutMinutes": 45
+}
+
+### "Cerrar jornada": stop orders and sign out kitchen and delivery
+POST {{Api_HostAddress}}/api/store/close-day
+Authorization: Bearer {{token}}
+
+###
+POST {{Api_HostAddress}}/api/store/open-day
+Authorization: Bearer {{token}}
+
+### Payment account (then upload its QR image with a multipart POST to /api/admin/payment-accounts/{id}/qr)
+POST {{Api_HostAddress}}/api/admin/payment-accounts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "provider": "Nequi", "holderName": "Comidas donde Piedad", "accountReference": "300 123 4567", "sortOrder": 0 }
+
+### Create a Cook / Delivery user
 POST {{Api_HostAddress}}/api/users
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{ "fullName": "Carlos Cocina", "email": "cocina@hamburguesa.local", "phone": "3001112233", "password": "Cocina123!", "role": "Cook" }
+{ "fullName": "Usuario Cocina", "username": "cocina", "email": null, "phone": null, "password": "Cocina123!", "role": "Cook" }
 
-### Crear cliente (Customer): sin contraseña, teléfono obligatorio
-POST {{Api_HostAddress}}/api/users
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{ "fullName": "Ana Cliente", "phone": "3009998877", "role": "Customer" }
-
-### n8n: crear o actualizar cliente por teléfono
-POST {{Api_HostAddress}}/api/integrations/n8n/customers
+### ---------- n8n (X-Api-Key) ----------
+POST {{Api_HostAddress}}/api/integrations/n8n/orders
 X-Api-Key: {{n8nKey}}
 Content-Type: application/json
 
-{ "fullName": "Ana Cliente", "phone": "3009998877" }
-
-### n8n: buscar cliente por teléfono
-GET {{Api_HostAddress}}/api/integrations/n8n/customers/3009998877
-X-Api-Key: {{n8nKey}}
+{ "customerName": "Ana Cliente", "customerPhone": "3009998877", "sectorId": 1, "otherSector": null, "items": [ { "productId": 1, "quantity": 1 } ], "paymentMethod": "Cash", "cashAmount": null }

@@ -5,11 +5,12 @@ using Domain.Entities;
 using Domain.Enums;
 using Domain.Interfaces;
 using Domain.Ports;
+using Domain.Errors;
 
 namespace Application.Features.Users;
 
-// ---------- Crear ----------
-/// <summary>Admin/Cook/Delivery requieren correo y contraseña. Customer requiere teléfono y no lleva contraseña.</summary>
+// ---------- Create ----------
+/// <summary>Admin/Cook/Delivery require username and password. Customer requires a phone and has no credentials.</summary>
 public sealed record CreateUserCommand(CreateUserRequest Data) : IRequest<UserResponse>;
 
 public sealed class CreateUserHandler(IUserRepository users, IPasswordHasher hasher, UserGuard guard)
@@ -22,22 +23,24 @@ public sealed class CreateUserHandler(IUserRepository users, IPasswordHasher has
 
         if (r.Role.IsStaff())
         {
-            if (string.IsNullOrWhiteSpace(r.Email))
-                throw new BusinessRuleException("El correo es obligatorio para Admin, Cook y Delivery.");
+            if (string.IsNullOrWhiteSpace(r.Username))
+                throw new BusinessRuleException(ErrorCodes.UserUsernameRequired, "Username is required for Admin, Cook and Delivery.");
             if (string.IsNullOrWhiteSpace(r.Password))
-                throw new BusinessRuleException("La contraseña es obligatoria para Admin, Cook y Delivery.");
+                throw new BusinessRuleException(ErrorCodes.UserPasswordRequired, "Password is required for Admin, Cook and Delivery.");
 
-            await guard.EnsureEmailIsFreeAsync(r.Email, null, ct);
-            user = User.CreateStaff(r.FullName, r.Email, r.Phone, hasher.Hash(r.Password), r.Role);
+            await guard.EnsureUsernameIsFreeAsync(r.Username, null, ct);
+            if (!string.IsNullOrWhiteSpace(r.Email))
+                await guard.EnsureEmailIsFreeAsync(r.Email, null, ct);
+            user = User.CreateStaff(r.FullName, r.Username, r.Email, r.Phone, hasher.Hash(r.Password), r.Role);
         }
         else
         {
-            if (!string.IsNullOrEmpty(r.Password))
-                throw new BusinessRuleException("Los clientes no tienen contraseña: no se registran ni inician sesión.");
+            if (!string.IsNullOrEmpty(r.Password) || !string.IsNullOrEmpty(r.Username))
+                throw new BusinessRuleException(ErrorCodes.CustomerPasswordNotAllowed, "Customers have no credentials: they never register or sign in.");
             if (string.IsNullOrWhiteSpace(r.Phone))
-                throw new BusinessRuleException("El teléfono es obligatorio para un cliente.");
+                throw new BusinessRuleException(ErrorCodes.CustomerPhoneRequired, "Phone is required for a customer.");
             if (await users.GetCustomerByPhoneAsync(r.Phone.Trim(), ct) is not null)
-                throw new ConflictException("Ya existe un cliente con ese teléfono.");
+                throw new ConflictException(ErrorCodes.CustomerPhoneTaken, "A customer with that phone already exists.");
             if (!string.IsNullOrWhiteSpace(r.Email))
                 await guard.EnsureEmailIsFreeAsync(r.Email, null, ct);
 
@@ -50,7 +53,7 @@ public sealed class CreateUserHandler(IUserRepository users, IPasswordHasher has
     }
 }
 
-// ---------- Editar ----------
+// ---------- Update ----------
 public sealed record UpdateUserCommand(int Id, int CurrentUserId, UpdateUserRequest Data) : IRequest<UserResponse>;
 
 public sealed class UpdateUserHandler(IUserRepository users, UserGuard guard)
@@ -63,15 +66,17 @@ public sealed class UpdateUserHandler(IUserRepository users, UserGuard guard)
 
         if (!string.IsNullOrWhiteSpace(r.Email))
             await guard.EnsureEmailIsFreeAsync(r.Email, user.Id, ct);
+        if (user.Role.IsStaff() && !string.IsNullOrWhiteSpace(r.Username))
+            await guard.EnsureUsernameIsFreeAsync(r.Username, user.Id, ct);
 
         if (user.Role == UserRole.Admin && r.Role != UserRole.Admin)
         {
             if (user.Id == cmd.CurrentUserId)
-                throw new BusinessRuleException("No puedes quitarte el rol de Admin a ti mismo.");
+                throw new BusinessRuleException(ErrorCodes.UserCannotDemoteSelf, "You cannot remove your own Admin role.");
             await guard.EnsureNotLastAdminAsync(user, ct);
         }
 
-        user.UpdateProfile(r.FullName, r.Email, r.Phone);
+        user.UpdateProfile(r.FullName, r.Username ?? user.Username, r.Email, r.Phone);
         user.ChangeRole(r.Role);
 
         await users.SaveChangesAsync(ct);
@@ -79,7 +84,7 @@ public sealed class UpdateUserHandler(IUserRepository users, UserGuard guard)
     }
 }
 
-// ---------- Contraseña (la asigna el Admin) ----------
+// ---------- Password reset (set by an Admin) ----------
 public sealed record ResetPasswordCommand(int Id, ResetPasswordRequest Data) : IRequest;
 
 public sealed class ResetPasswordHandler(IUserRepository users, IPasswordHasher hasher, UserGuard guard)
@@ -94,7 +99,7 @@ public sealed class ResetPasswordHandler(IUserRepository users, IPasswordHasher 
     }
 }
 
-// ---------- Desactivar (borrado lógico) ----------
+// ---------- Deactivate (soft delete) ----------
 public sealed record DeactivateUserCommand(int Id, int CurrentUserId) : IRequest;
 
 public sealed class DeactivateUserHandler(IUserRepository users, UserGuard guard)
@@ -105,7 +110,7 @@ public sealed class DeactivateUserHandler(IUserRepository users, UserGuard guard
         var user = await guard.FindAsync(cmd.Id, ct);
 
         if (user.Id == cmd.CurrentUserId)
-            throw new BusinessRuleException("No puedes desactivar tu propio usuario.");
+            throw new BusinessRuleException(ErrorCodes.UserCannotDeactivateSelf, "You cannot deactivate your own user.");
         await guard.EnsureNotLastAdminAsync(user, ct);
 
         user.Deactivate();
@@ -114,7 +119,7 @@ public sealed class DeactivateUserHandler(IUserRepository users, UserGuard guard
     }
 }
 
-// ---------- Reactivar ----------
+// ---------- Reactivate ----------
 public sealed record ActivateUserCommand(int Id) : IRequest;
 
 public sealed class ActivateUserHandler(IUserRepository users, UserGuard guard)

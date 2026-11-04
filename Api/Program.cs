@@ -1,13 +1,22 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Api.Middleware;
+using Api.Realtime;
+using Api.Workers;
 using Api.Security;
 using Application;
+using Application.Abstractions;
 using Domain.Enums;
+using Domain.Errors;
+using Domain.Services;
 using Infrastructure;
 using Infrastructure.Persistence.Seed;
 using Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Serilog;
@@ -18,14 +27,14 @@ public partial class Program
 
     private static async Task Main(string[] args)
     {
-        // Logger de arranque: captura errores que ocurran ANTES de que el host exista
+        // Bootstrap logger: captures errors that happen BEFORE the host exists
         Log.Logger = new LoggerConfiguration()
             .WriteTo.Console()
             .CreateBootstrapLogger();
 
         try
         {
-            Log.Information("BackHamburguesa API iniciando...");
+            Log.Information("BackHamburguesa API starting...");
 
             var builder = WebApplication.CreateBuilder(args);
 
@@ -48,12 +57,17 @@ public partial class Program
                             "{Properties:j}{NewLine}{Exception}");
             });
 
-            // --- Servicios de la capa API ---
+            // --- API layer services ---
             builder.Services
                 .AddControllers()
-                // Los enums viajan como texto: "Admin", "Cook", "Delivery", "Customer"
+                // Enums travel as text: "Admin", "Cook", "Delivery", "Customer"
                 .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-            builder.Services.AddProblemDetails();
+            builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
+            {
+                // Automatic [ApiController] 400s also get a stable code for the front
+                if (ctx.ProblemDetails is ValidationProblemDetails)
+                    ctx.ProblemDetails.Extensions.TryAdd("code", ErrorCodes.ValidationFailed);
+            });
             builder.Services.AddExceptionHandler<AppExceptionHandler>();
             builder.Services.AddEndpointsApiExplorer();
 
@@ -64,24 +78,24 @@ public partial class Program
                     Title = "BackHamburguesa API",
                     Version = "v1",
                     Description =
-                        "API de facturación electrónica y automatizaciones — comida rápida / DIAN"
+                        "Fast food store API: staff, customers, orders, automations (n8n) and e-invoicing (DIAN)"
                 });
 
-                // Botón "Authorize" para pegar el JWT que devuelve /api/auth/login
+                // "Authorize" button to paste the JWT returned by the login endpoints
                 options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Type = SecuritySchemeType.Http,
                     Scheme = "bearer",
                     BearerFormat = "JWT",
-                    Description = "JWT obtenido en POST /api/auth/login"
+                    Description = "JWT from POST /api/auth/login"
                 });
-                // API key para los endpoints de integración con n8n
+                // API key for the n8n integration endpoints
                 options.AddSecurityDefinition(ApiKeyAuthenticationHandler.SchemeName, new OpenApiSecurityScheme
                 {
                     Type = SecuritySchemeType.ApiKey,
                     In = ParameterLocation.Header,
                     Name = ApiKeyAuthenticationHandler.HeaderName,
-                    Description = "API key de n8n (N8n:ApiKey)"
+                    Description = "n8n API key (N8n:ApiKey)"
                 });
                 options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
                 {
@@ -93,14 +107,20 @@ public partial class Program
                 if (File.Exists(xml)) options.IncludeXmlComments(xml);
             });
 
-            // --- Capas (arquitectura hexagonal) ---
+            // --- Layers (hexagonal architecture) ---
             builder.Services.AddApplication();
             builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
 
-            // --- Autenticación: JWT para el personal, API key para n8n ---
+            // --- Real time (staff screens) + order notifications + background alerts ---
+            builder.Services.AddSignalR()
+                .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+            builder.Services.AddScoped<IOrderEvents, OrderEventsPublisher>();
+            builder.Services.AddHostedService<OrderMaintenanceWorker>();
+
+            // --- Authentication: JWT for staff, API key for n8n ---
             var jwt = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>() ?? new JwtOptions();
             if (jwt.Key.Length < 32)
-                throw new InvalidOperationException("Jwt:Key no configurada o con menos de 32 caracteres.");
+                throw new InvalidOperationException("Jwt:Key is missing or shorter than 32 characters.");
 
             builder.Services
                 .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -120,6 +140,29 @@ public partial class Program
                         NameClaimType = "name",
                         RoleClaimType = "role"
                     };
+                    options.Events = new JwtBearerEvents
+                    {
+                        // Browsers cannot send headers on WebSockets: SignalR passes the token in the query string
+                        OnMessageReceived = context =>
+                        {
+                            var token = context.Request.Query["access_token"];
+                            if (!string.IsNullOrEmpty(token) && context.HttpContext.Request.Path.StartsWithSegments(OrdersHub.Path))
+                                context.Token = token;
+                            return Task.CompletedTask;
+                        },
+                        // "Cerrar jornada" invalidates kitchen and delivery tokens issued before it (admin is never affected)
+                        OnTokenValidated = context =>
+                        {
+                            var revocation = context.HttpContext.RequestServices.GetRequiredService<ISessionRevocation>();
+                            if (context.SecurityToken is JsonWebToken token
+                                && Enum.TryParse<UserRole>(context.Principal?.FindFirst("role")?.Value, out var role)
+                                && OrderTiming.IsSessionRevoked(role, token.IssuedAt, revocation.StaffSessionsRevokedAt))
+                            {
+                                context.Fail("Session closed by the administrator.");
+                            }
+                            return Task.CompletedTask;
+                        }
+                    };
                 })
                 .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
                     ApiKeyAuthenticationHandler.SchemeName,
@@ -132,30 +175,49 @@ public partial class Program
                 .AddPolicy(Policies.Staff, p => p
                     .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
                     .RequireRole(Policies.StaffRoles))
+                .AddPolicy(Policies.Kitchen, p => p
+                    .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+                    .RequireRole(nameof(UserRole.Admin), nameof(UserRole.Cook)))
+                .AddPolicy(Policies.Dispatch, p => p
+                    .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+                    .RequireRole(nameof(UserRole.Admin), nameof(UserRole.Delivery)))
                 .AddPolicy(Policies.N8n, p => p
                     .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
                     .RequireAuthenticatedUser());
 
-            // --- CORS para Front-Hamburguesa ---
+            // --- Rate limiting: sign-in and public orders, per IP ---
+            builder.Services.AddRateLimiter(o =>
+            {
+                o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                foreach (var policy in new[] { RateLimits.Auth, RateLimits.Orders })
+                {
+                    o.AddPolicy(policy, ctx => RateLimitPartition.GetFixedWindowLimiter(
+                        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+                }
+            });
+
+            // --- CORS for Front-Hamburguesa ---
             var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
             builder.Services.AddCors(options =>
                 options.AddPolicy(FrontCorsPolicy, policy => policy
                     .WithOrigins(allowedOrigins)
                     .AllowAnyHeader()
-                    .AllowAnyMethod()));
+                    .AllowAnyMethod()
+                    .AllowCredentials())); // SignalR negotiation
 
             var app = builder.Build();
 
-            // Migraciones + Admin inicial (los usuarios solo los crea un Admin)
+            // Migrations + initial Admin (only an Admin can create users)
             await DatabaseInitializer.InitializeAsync(app.Services);
 
-            // --- Pipeline (el orden importa) ---
-            // El exception handler va primero para que el log de requests
-            // vea la excepción y la registre con el contexto de la petición.
+            // --- Pipeline (order matters) ---
+            // The exception handler goes first so request logging
+            // sees the exception and logs it with the request context.
             app.UseExceptionHandler();
             app.UseSerilogRequestLogging();
 
-            // Swagger: siempre en Development, o en otros entornos si Swagger:Enabled = true
+            // Swagger: always in Development, elsewhere only if Swagger:Enabled = true
             var enableSwagger = app.Environment.IsDevelopment()
                                 || app.Configuration.GetValue<bool>("Swagger:Enabled");
 
@@ -170,18 +232,20 @@ public partial class Program
             }
 
             app.UseCors(FrontCorsPolicy);
+            app.UseRateLimiter();
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapHealthChecks("/health");
             app.MapControllers();
+            app.MapHub<OrdersHub>(OrdersHub.Path);
 
             await app.RunAsync();
         }
         catch (Exception ex) when (ex is not HostAbortedException)
         {
-            Log.Fatal(ex, "La API terminó de forma inesperada");
-            Environment.ExitCode = 1; // para que Docker/CI se enteren del fallo
+            Log.Fatal(ex, "The API terminated unexpectedly");
+            Environment.ExitCode = 1; // so Docker/CI notice the failure
         }
         finally
         {

@@ -8,14 +8,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
-/// <summary>Gestión de usuarios. Solo el Admin crea, edita y desactiva usuarios (no hay auto-registro).</summary>
+/// <summary>User management. Only an Admin creates, edits and deactivates users (no self sign-up).</summary>
 [ApiController]
 [Route("api/users")]
 [Authorize(Policy = Policies.AdminOnly)]
 [Produces("application/json")]
 public class UsersController(IMediator mediator) : ControllerBase
 {
-    /// <summary>Lista usuarios, opcionalmente filtrados por rol.</summary>
+    /// <summary>Lists users, optionally filtered by role.</summary>
     [HttpGet]
     public async Task<ActionResult<List<UserResponse>>> GetAll(
         [FromQuery] UserRole? role, [FromQuery] bool includeInactive = false, CancellationToken ct = default) =>
@@ -28,8 +28,8 @@ public class UsersController(IMediator mediator) : ControllerBase
         Ok(await mediator.Send(new GetUserByIdQuery(id), ct));
 
     /// <summary>
-    /// Crea un usuario. Admin/Cook/Delivery requieren correo y contraseña.
-    /// Customer requiere teléfono y no lleva contraseña.
+    /// Creates a user. Admin/Cook/Delivery require email and password.
+    /// Customer requires a phone and has no password.
     /// </summary>
     [HttpPost]
     [ProducesResponseType<UserResponse>(StatusCodes.Status201Created)]
@@ -46,7 +46,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<UserResponse>> Update(int id, UpdateUserRequest request, CancellationToken ct) =>
         Ok(await mediator.Send(new UpdateUserCommand(id, User.GetUserId(), request), ct));
 
-    /// <summary>El Admin asigna una contraseña nueva a un miembro del personal.</summary>
+    /// <summary>An Admin sets a new password for a staff member.</summary>
     [HttpPut("{id:int}/password")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> ResetPassword(int id, ResetPasswordRequest request, CancellationToken ct)
@@ -55,7 +55,7 @@ public class UsersController(IMediator mediator) : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Desactiva el usuario (borrado lógico): ya no podrá iniciar sesión.</summary>
+    /// <summary>Deactivates the user (soft delete): they can no longer sign in.</summary>
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Deactivate(int id, CancellationToken ct)

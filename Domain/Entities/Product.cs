@@ -1,7 +1,7 @@
 namespace Domain.Entities;
 public sealed class Product
 {
-    private Product() { }                       // requerido por EF Core
+    private Product() { }                       // required by EF Core
 
     public int Id { get; set; }
     public string Name { get; set; } = null!;
@@ -11,6 +11,18 @@ public sealed class Product
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DeletedAt { get; set; }
+
+    // Menu presentation
+    public string? Category { get; set; }
+    public string? Description { get; set; }
+    public string? ImageUrl { get; set; }
+
+    public static Product CreateMenuItem(string name, decimal price, string? category, string? description, string? imageUrl)
+    {
+        var product = new Product { Category = category, Description = description, ImageUrl = imageUrl };
+        product.CreateProduct(name, price, stock: 0);
+        return product;
+    }
 
     public void CreateProduct(string name, decimal price, int stock)
     {

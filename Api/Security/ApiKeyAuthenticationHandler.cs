@@ -13,8 +13,8 @@ public sealed class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions
 }
 
 /// <summary>
-/// Autenticación máquina-a-máquina para n8n: envía la cabecera X-Api-Key.
-/// Se usa solo en los endpoints de integración, no en el front.
+/// Machine-to-machine authentication for n8n: it sends the X-Api-Key header.
+/// Used only by the integration endpoints, never by the front.
 /// </summary>
 public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<ApiKeyAuthenticationOptions> options,
@@ -30,7 +30,7 @@ public sealed class ApiKeyAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
 
         if (string.IsNullOrEmpty(Options.ApiKey) || !FixedTimeEquals(provided.ToString(), Options.ApiKey))
-            return Task.FromResult(AuthenticateResult.Fail("API key inválida."));
+            return Task.FromResult(AuthenticateResult.Fail("Invalid API key."));
 
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, "n8n")], SchemeName);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));

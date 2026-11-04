@@ -1,0 +1,46 @@
+{
+  "name": "Pedidos → WhatsApp",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "pedidos", "responseMode": "onReceived", "options": {} },
+      "id": "b1f6c3a0-0001-4a1e-9f00-000000000001",
+      "name": "Evento de pedido",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "pedidos"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns an API order event into a WhatsApp text for the staff phone\nconst { event, data } = $input.first().json.body;\nconst order = data.order ?? data;\nconst items = (order.items ?? []).map(i => `• ${i.quantity} x ${i.productName}`).join('\\n');\nconst money = n => '$ ' + Number(n).toLocaleString('es-CO');\nconst head = {\n  'order.created': order.status === 'Received' ? '🟢 Pedido nuevo' : '🕓 Pedido esperando pago',\n  'order.payment_submitted': '🧾 Comprobante recibido: revisar en el panel',\n  'order.confirmed': '✅ Pago aprobado: pedido a cocina',\n  'order.delayed': `⏰ Pedido demorado (${data.minutesWaiting} min) y aún no sale`,\n  'order.escalated': `⚠️ Admin: el pedido sigue sin salir (${data.minutesWaiting} min)`,\n  'order.updated': `🔄 Pedido actualizado: ${order.status}`\n}[event] ?? event;\nconst text = `${head}\\nPedido ${order.code} · ${order.customerName} (${order.customerPhone})\\nSector: ${order.sectorName}\\n${items}\\nTotal: ${money(order.total)} · Pago: ${order.paymentMethod === 'Cash' ? 'efectivo' : 'transferencia'}`;\nreturn [{ json: { text, event } }];"
+      },
+      "id": "b1f6c3a0-0002-4a1e-9f00-000000000002",
+      "name": "Armar mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $env.WHATSAPP_STAFF_NUMBER, type: 'text', text: { body: $json.text } }) }}",
+        "options": {}
+      },
+      "id": "b1f6c3a0-0003-4a1e-9f00-000000000003",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0]
+    }
+  ],
+  "connections": {
+    "Evento de pedido": { "main": [ [ { "node": "Armar mensaje", "type": "main", "index": 0 } ] ] },
+    "Armar mensaje": { "main": [ [ { "node": "Enviar WhatsApp", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

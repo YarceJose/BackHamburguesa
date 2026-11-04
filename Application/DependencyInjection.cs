@@ -10,14 +10,14 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        // --- Orquestador de peticiones ---
+        // --- Request orchestrator ---
         services.AddScoped<IMediator, Mediator.Mediator>();
 
-        // Pipeline: se ejecutan en este orden alrededor de cada handler
+        // Pipeline: behaviors run in this order around every handler
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
-        // Todos los IRequestHandler<,> de este ensamblado
+        // Every IRequestHandler<,> in this assembly
         var handlerInterface = typeof(IRequestHandler<,>);
         var handlers = typeof(DependencyInjection).Assembly.GetTypes()
             .Where(t => t is { IsAbstract: false, IsInterface: false })
@@ -28,8 +28,9 @@ public static class DependencyInjection
             services.AddScoped(service, implementation);
 
         services.AddScoped<UserGuard>();
+        services.AddScoped<Features.Store.StoreStatusReader>();
 
-        // Caso de uso de productos (aún sin migrar al mediator)
+        // Product use case (not migrated to the mediator yet)
         services.AddScoped<CaseUseProduct>();
         return services;
     }

@@ -1,15 +1,25 @@
+using Domain.Errors;
+
 namespace Application.Exceptions;
 
-/// <summary>Errores de aplicación que la API traduce a ProblemDetails con su código HTTP.</summary>
-public abstract class AppException(string message) : Exception(message);
+/// <summary>Application errors; the API turns them into ProblemDetails with an HTTP status and a "code".</summary>
+public abstract class AppException(string code, string message) : Exception(message)
+{
+    public string Code { get; } = code;
+}
 
-public sealed class NotFoundException(string message) : AppException(message);
-public sealed class ConflictException(string message) : AppException(message);
-public sealed class BusinessRuleException(string message) : AppException(message);
-public sealed class InvalidCredentialsException() : AppException("Correo o contraseña incorrectos.");
+public sealed class NotFoundException(string code, string message) : AppException(code, message);
+public sealed class ConflictException(string code, string message) : AppException(code, message);
+public sealed class BusinessRuleException(string code, string message) : AppException(code, message);
+
+public sealed class InvalidCredentialsException()
+    : AppException(ErrorCodes.InvalidCredentials, "Invalid username or password.");
 
 public sealed class ValidationException(IDictionary<string, string[]> errors)
-    : AppException("Uno o más campos no son válidos.")
+    : AppException(ErrorCodes.ValidationFailed, "One or more fields are invalid.")
 {
     public IDictionary<string, string[]> Errors { get; } = errors;
 }
+
+public sealed class ForbiddenException(string message)
+    : AppException(ErrorCodes.Forbidden, message);

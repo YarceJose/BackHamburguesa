@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Application.Behaviors;
 
-/// <summary>Registra cada petición que pasa por el mediator con su duración y resultado.</summary>
+/// <summary>Logs every request that goes through the mediator with its duration and outcome.</summary>
 public sealed class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>
 {
@@ -17,17 +17,17 @@ public sealed class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior
         try
         {
             var response = await next();
-            logger.LogInformation("{Request} atendida en {Elapsed} ms", name, sw.ElapsedMilliseconds);
+            logger.LogInformation("{Request} handled in {Elapsed} ms", name, sw.ElapsedMilliseconds);
             return response;
         }
         catch (Exception ex) when (ex is AppException or DomainException)
         {
-            logger.LogWarning("{Request} rechazada en {Elapsed} ms: {Reason}", name, sw.ElapsedMilliseconds, ex.Message);
+            logger.LogWarning("{Request} rejected in {Elapsed} ms: {Reason}", name, sw.ElapsedMilliseconds, ex.Message);
             throw;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "{Request} falló en {Elapsed} ms", name, sw.ElapsedMilliseconds);
+            logger.LogError(ex, "{Request} failed in {Elapsed} ms", name, sw.ElapsedMilliseconds);
             throw;
         }
     }

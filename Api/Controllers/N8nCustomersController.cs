@@ -8,9 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace Api.Controllers;
 
 /// <summary>
-/// Endpoints para los flujos de n8n (WhatsApp, formularios, etc.).
-/// Autenticación con la cabecera X-Api-Key. Así los clientes quedan registrados
-/// sin pasar nunca por el login de Front-Hamburguesa.
+/// Endpoints for n8n workflows (WhatsApp, forms, etc.).
+/// Authenticated with the X-Api-Key header, so customers get registered
+/// without ever going through the Front-Hamburguesa login.
 /// </summary>
 [ApiController]
 [Route("api/integrations/n8n/customers")]
@@ -18,14 +18,14 @@ namespace Api.Controllers;
 [Produces("application/json")]
 public class N8nCustomersController(IMediator mediator) : ControllerBase
 {
-    /// <summary>Busca un cliente por teléfono.</summary>
+    /// <summary>Finds a customer by phone.</summary>
     [HttpGet("{phone}")]
     [ProducesResponseType<UserResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UserResponse>> GetByPhone(string phone, CancellationToken ct) =>
         Ok(await mediator.Send(new GetCustomerByPhoneQuery(phone), ct));
 
-    /// <summary>Crea el cliente si no existe (por teléfono) o actualiza sus datos.</summary>
+    /// <summary>Creates the customer if missing (by phone) or updates their data.</summary>
     [HttpPost]
     [ProducesResponseType<UserResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<UserResponse>(StatusCodes.Status201Created)]

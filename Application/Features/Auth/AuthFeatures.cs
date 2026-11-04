@@ -6,10 +6,11 @@ using Application.Mediator;
 using Domain.Entities;
 using Domain.Interfaces;
 using Domain.Ports;
+using Domain.Errors;
 
 namespace Application.Features.Auth;
 
-// ---------- Login (personal desde Front-Hamburguesa; los clientes no inician sesión) ----------
+// ---------- Login: admin, cook and delivery with username + password; customers never sign in ----------
 public sealed record LoginCommand(LoginRequest Data) : IRequest<LoginResponse>;
 
 public sealed class LoginHandler(IUserRepository users, IPasswordHasher hasher, IToken tokens)
@@ -17,9 +18,10 @@ public sealed class LoginHandler(IUserRepository users, IPasswordHasher hasher, 
 {
     public async Task<LoginResponse> Handle(LoginCommand cmd, CancellationToken ct)
     {
-        var user = await users.GetByEmailAsync(User.NormalizeEmail(cmd.Data.Email), ct);
+        var username = cmd.Data.Username.Trim().ToLowerInvariant();
+        var user = await users.GetByUsernameAsync(username, ct);
 
-        // Mismo error para "no existe", "es cliente", "inactivo" o "contraseña mala": no se filtra información.
+        // Same error for "not found", "customer", "inactive" or "wrong password": no information leaks.
         if (user is null || !user.CanLogin || !hasher.Verify(cmd.Data.Password, user.PasswordHash!))
             throw new InvalidCredentialsException();
 
@@ -31,7 +33,7 @@ public sealed class LoginHandler(IUserRepository users, IPasswordHasher hasher, 
     }
 }
 
-// ---------- Mi perfil ----------
+// ---------- Current user profile ----------
 public sealed record GetProfileQuery(int UserId) : IRequest<UserResponse>;
 
 public sealed class GetProfileHandler(UserGuard guard) : IRequestHandler<GetProfileQuery, UserResponse>
@@ -40,7 +42,7 @@ public sealed class GetProfileHandler(UserGuard guard) : IRequestHandler<GetProf
         UserResponse.From(await guard.FindAsync(q.UserId, ct));
 }
 
-// ---------- Cambiar mi contraseña ----------
+// ---------- Change own password ----------
 public sealed record ChangeOwnPasswordCommand(int UserId, ChangePasswordRequest Data) : IRequest;
 
 public sealed class ChangeOwnPasswordHandler(IUserRepository users, IPasswordHasher hasher, UserGuard guard)
@@ -51,7 +53,7 @@ public sealed class ChangeOwnPasswordHandler(IUserRepository users, IPasswordHas
         var user = await guard.FindAsync(cmd.UserId, ct);
 
         if (!user.CanLogin || !hasher.Verify(cmd.Data.CurrentPassword, user.PasswordHash!))
-            throw new BusinessRuleException("La contraseña actual no es correcta.");
+            throw new BusinessRuleException(ErrorCodes.WrongCurrentPassword, "The current password is incorrect.");
 
         user.ChangePassword(hasher.Hash(cmd.Data.NewPassword));
         await users.SaveChangesAsync(ct);

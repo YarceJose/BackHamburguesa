@@ -5,7 +5,7 @@ using Domain.Interfaces;
 
 namespace Application.Features.Users;
 
-// ---------- Listar ----------
+// ---------- List ----------
 public sealed record GetUsersQuery(UserRole? Role, bool IncludeInactive) : IRequest<List<UserResponse>>;
 
 public sealed class GetUsersHandler(IUserRepository users) : IRequestHandler<GetUsersQuery, List<UserResponse>>
@@ -14,7 +14,7 @@ public sealed class GetUsersHandler(IUserRepository users) : IRequestHandler<Get
         (await users.GetAllAsync(q.Role, q.IncludeInactive, ct)).Select(UserResponse.From).ToList();
 }
 
-// ---------- Por id ----------
+// ---------- By id ----------
 public sealed record GetUserByIdQuery(int Id) : IRequest<UserResponse>;
 
 public sealed class GetUserByIdHandler(UserGuard guard) : IRequestHandler<GetUserByIdQuery, UserResponse>

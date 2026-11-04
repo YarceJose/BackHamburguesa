@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_HOST_PORT:-5433}:5432"   # 5433 en tu Mac (el 5432 ya está ocupado); para `dotnet run` contra este Postgres
+      - "${DB_HOST_PORT:-5433}:5432"   # 5433 on the host (5432 is taken); lets `dotnet run` use this Postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,20 +20,29 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"        # no usar 5000: en macOS lo ocupa AirPlay Receiver
+      - "8080:8080"        # avoid 5000: macOS AirPlay Receiver uses it
     environment:
-      ASPNETCORE_ENVIRONMENT: Development   # Swagger solo se expone en Development (o Swagger__Enabled=true)
-      # Dentro de la red de Docker el host de Postgres es el servicio "db", no localhost
+      ASPNETCORE_ENVIRONMENT: Development   # Swagger is only exposed in Development (or with Swagger__Enabled=true)
+      # Inside the Docker network the Postgres host is the "db" service, not localhost
       ConnectionStrings__Default: Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}
-      ConnectionStrings__Test: Host=db;Port=5432;Database=${DB_Test};Username=${DB_USER};Password=${DB_PASSWORD}
       Jwt__Key: ${JWT_KEY}
-      Jwt__ExpirationMinutes: ${JWT_EXPIRATION_MINUTES:-480}
+      # Kitchen and delivery sessions also end when the admin presses "Cerrar jornada"
+      Jwt__ExpirationMinutes: ${JWT_EXPIRATION_MINUTES:-1440}
       Cors__AllowedOrigins__0: ${FRONT_URL:-http://localhost:5173}
       N8n__BaseUrl: http://n8n:5678
       N8n__ApiKey: ${N8N_API_KEY}
+      # n8n "Webhook" node that turns order events into WhatsApp messages (n8n/pedidos-whatsapp.json)
+      N8n__OrdersWebhookUrl: ${N8N_ORDERS_WEBHOOK_URL:-http://n8n:5678/webhook/pedidos}
+      # Payment receipts and QR images live in the api_data volume
+      Storage__Root: /app/data
       Seed__Admin__FullName: ${ADMIN_FULLNAME:-Administrador}
+      Seed__Admin__Username: ${ADMIN_USERNAME:-admin}
       Seed__Admin__Email: ${ADMIN_EMAIL}
       Seed__Admin__Password: ${ADMIN_PASSWORD}
+      # Starter menu and sector list (only when the tables are empty)
+      Seed__DemoData: "true"
+    volumes:
+      - api_data:/app/data
     depends_on:
       db:
         condition: service_healthy
@@ -51,10 +60,14 @@ services:
       GENERIC_TIMEZONE: America/Bogota
       TZ: America/Bogota
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
-      # En los flujos usa {{ $env.BACKEND_API_URL }} y la cabecera X-Api-Key = {{ $env.BACKEND_API_KEY }}
+      # In workflows use {{ $env.BACKEND_API_URL }} and the header X-Api-Key = {{ $env.BACKEND_API_KEY }}
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       BACKEND_API_URL: http://api:8080
       BACKEND_API_KEY: ${N8N_API_KEY}
+      # WhatsApp Business Cloud API (Meta). Leave empty until the account is set up.
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_STAFF_NUMBER: ${WHATSAPP_STAFF_NUMBER:-}
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
@@ -63,3 +76,4 @@ services:
 volumes:
   pgdata:
   n8n_data:
+  api_data:

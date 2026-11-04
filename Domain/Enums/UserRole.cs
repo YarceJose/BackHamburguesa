@@ -1,9 +1,9 @@
 namespace Domain.Enums;
 
 /// <summary>
-/// Roles de la tienda.
-/// Admin, Cook y Delivery son personal: tienen credenciales e ingresan desde Front-Hamburguesa.
-/// Customer es el cliente: NO se registra ni inicia sesión, solo se guarda para asociarlo a pedidos.
+/// Store roles.
+/// Admin, Cook and Delivery are staff: they have credentials and sign in from Front-Hamburguesa.
+/// Customer does NOT register or sign in; it is only stored to be linked to orders.
 /// </summary>
 public enum UserRole
 {

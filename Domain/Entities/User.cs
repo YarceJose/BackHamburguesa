@@ -1,14 +1,18 @@
 using Domain.Enums;
+using Domain.Errors;
+using System.Text.RegularExpressions;
 using Domain.Exceptions;
 
 namespace Domain.Entities;
 
-public sealed class User
+public sealed partial class User
 {
-    private User() { }                       // requerido por EF Core
+    private User() { }                       // required by EF Core
 
     public int Id { get; private set; }
     public string FullName { get; private set; } = null!;
+    /// <summary>Sign-in name for staff (admin, cook, delivery). Customers have none.</summary>
+    public string? Username { get; private set; }
     public string? Email { get; private set; }
     public string? Phone { get; private set; }
     public string? PasswordHash { get; private set; }
@@ -19,34 +23,33 @@ public sealed class User
     public DateTime? LastLoginAt { get; private set; }
     public DateTime? DeletedAt { get; private set; }
 
-    /// <summary>Solo el personal activo con contraseña puede iniciar sesión. Los clientes nunca.</summary>
+    /// <summary>Only active staff with a password can sign in. Customers never can.</summary>
     public bool CanLogin => Role.IsStaff() && IsActive && PasswordHash is not null;
 
-    /// <summary>Crea un usuario del personal (admin, cocinero o domiciliario) con credenciales.</summary>
-    public static User CreateStaff(string fullName, string email, string? phone, string passwordHash, UserRole role)
+    /// <summary>Creates a staff user (admin, cook or delivery) who signs in with username and password.</summary>
+    public static User CreateStaff(string fullName, string username, string? email, string? phone, string passwordHash, UserRole role)
     {
         if (!role.IsStaff())
-            throw new DomainException("Solo los roles Admin, Cook y Delivery pueden tener credenciales.");
-        if (string.IsNullOrWhiteSpace(email))
-            throw new DomainException("El correo es obligatorio para el personal.");
+            throw new DomainException(ErrorCodes.UserRoleNotStaff, "Only Admin, Cook and Delivery roles can have credentials.");
         if (string.IsNullOrWhiteSpace(passwordHash))
-            throw new DomainException("La contraseña es obligatoria para el personal.");
+            throw new DomainException(ErrorCodes.UserPasswordRequired, "Password is required for staff.");
 
         return new User
         {
             FullName = NormalizeName(fullName),
-            Email = NormalizeEmail(email),
+            Username = NormalizeUsername(username),
+            Email = string.IsNullOrWhiteSpace(email) ? null : NormalizeEmail(email),
             Phone = NormalizePhone(phone),
             PasswordHash = passwordHash,
             Role = role
         };
     }
 
-    /// <summary>Crea un cliente. No tiene contraseña: no se registra ni ingresa al sistema.</summary>
+    /// <summary>Creates a customer. Customers have no password: they never register or sign in.</summary>
     public static User CreateCustomer(string fullName, string phone, string? email)
     {
         if (string.IsNullOrWhiteSpace(phone))
-            throw new DomainException("El teléfono es obligatorio para un cliente.");
+            throw new DomainException(ErrorCodes.CustomerPhoneRequired, "Phone is required for a customer.");
 
         return new User
         {
@@ -58,25 +61,24 @@ public sealed class User
         };
     }
 
-    public void UpdateProfile(string fullName, string? email, string? phone)
+    public void UpdateProfile(string fullName, string? username, string? email, string? phone)
     {
-        if (Role.IsStaff() && string.IsNullOrWhiteSpace(email))
-            throw new DomainException("El correo es obligatorio para el personal.");
         if (Role == UserRole.Customer && string.IsNullOrWhiteSpace(phone))
-            throw new DomainException("El teléfono es obligatorio para un cliente.");
+            throw new DomainException(ErrorCodes.CustomerPhoneRequired, "Phone is required for a customer.");
 
         FullName = NormalizeName(fullName);
+        if (Role.IsStaff()) Username = NormalizeUsername(username);
         Email = string.IsNullOrWhiteSpace(email) ? null : NormalizeEmail(email);
         Phone = NormalizePhone(phone);
         Touch();
     }
 
-    /// <summary>El rol solo cambia entre roles del personal: un cliente no pasa a tener credenciales.</summary>
+    /// <summary>Roles only change among staff roles: a customer never gains credentials.</summary>
     public void ChangeRole(UserRole newRole)
     {
         if (newRole == Role) return;
         if (!Role.IsStaff() || !newRole.IsStaff())
-            throw new DomainException("No se puede convertir un cliente en personal ni un miembro del personal en cliente.");
+            throw new DomainException(ErrorCodes.UserRoleChangeNotAllowed, "A customer cannot become staff and staff cannot become a customer.");
 
         Role = newRole;
         Touch();
@@ -85,7 +87,7 @@ public sealed class User
     public void ChangePassword(string newPasswordHash)
     {
         if (!Role.IsStaff())
-            throw new DomainException("Los clientes no tienen contraseña.");
+            throw new DomainException(ErrorCodes.CustomerPasswordNotAllowed, "Customers do not have a password.");
 
         PasswordHash = newPasswordHash;
         Touch();
@@ -114,10 +116,24 @@ public sealed class User
 
     public static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
+    /// <summary>3–30 characters: lowercase letters, digits, dot, dash or underscore.</summary>
+    public static string NormalizeUsername(string? username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            throw new DomainException(ErrorCodes.UserUsernameRequired, "Username is required for staff.");
+        var value = username.Trim().ToLowerInvariant();
+        if (!UsernamePattern().IsMatch(value))
+            throw new DomainException(ErrorCodes.UserUsernameInvalid, "Username must be 3-30 characters: letters, digits, dot, dash or underscore.");
+        return value;
+    }
+
+    [GeneratedRegex("^[a-z0-9._-]{3,30}$")]
+    private static partial Regex UsernamePattern();
+
     private static string NormalizeName(string fullName)
     {
         if (string.IsNullOrWhiteSpace(fullName))
-            throw new DomainException("El nombre es obligatorio.");
+            throw new DomainException(ErrorCodes.UserNameRequired, "Full name is required.");
         return fullName.Trim();
     }
 

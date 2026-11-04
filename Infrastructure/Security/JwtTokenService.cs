@@ -28,6 +28,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IToken
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Name, user.FullName),
+                new Claim(JwtRegisteredClaimNames.PreferredUsername, user.Username ?? string.Empty),
                 new Claim("role", user.Role.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             ])

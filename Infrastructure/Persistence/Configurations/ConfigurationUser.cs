@@ -13,6 +13,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasKey(u => u.Id);
 
         builder.Property(u => u.FullName).IsRequired().HasMaxLength(120);
+        builder.Property(u => u.Username).HasMaxLength(30);
         builder.Property(u => u.Email).HasMaxLength(150);
         builder.Property(u => u.Phone).HasMaxLength(20);
         builder.Property(u => u.PasswordHash).HasMaxLength(100);
@@ -23,10 +24,13 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Ignore(u => u.CanLogin);
 
-        // El correo se guarda normalizado (minúsculas); Postgres permite varios NULL en un índice único.
+        // Staff sign in with username (stored lowercase); customers have none, so NULLs are allowed
+        builder.HasIndex(u => u.Username).IsUnique();
+
+        // Email is stored normalized (lowercase); Postgres allows several NULLs in a unique index.
         builder.HasIndex(u => u.Email).IsUnique();
 
-        // Un cliente se identifica por su teléfono (n8n lo busca así).
+        // A customer is identified by phone (that is how n8n looks them up).
         builder.HasIndex(u => u.Phone)
             .IsUnique()
             .HasFilter($"\"Role\" = '{nameof(UserRole.Customer)}'")

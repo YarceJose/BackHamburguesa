@@ -4,10 +4,11 @@ using Application.Features.Users;
 using Application.Mediator;
 using Domain.Entities;
 using Domain.Interfaces;
+using Domain.Errors;
 
 namespace Application.Features.Customers;
 
-// ---------- Buscar cliente por teléfono (n8n) ----------
+// ---------- Find customer by phone (n8n) ----------
 public sealed record GetCustomerByPhoneQuery(string Phone) : IRequest<UserResponse>;
 
 public sealed class GetCustomerByPhoneHandler(IUserRepository users) : IRequestHandler<GetCustomerByPhoneQuery, UserResponse>
@@ -15,12 +16,12 @@ public sealed class GetCustomerByPhoneHandler(IUserRepository users) : IRequestH
     public async Task<UserResponse> Handle(GetCustomerByPhoneQuery q, CancellationToken ct)
     {
         var customer = await users.GetCustomerByPhoneAsync(q.Phone.Trim(), ct)
-            ?? throw new NotFoundException("No existe un cliente con ese teléfono.");
+            ?? throw new NotFoundException(ErrorCodes.CustomerNotFound, "No customer with that phone exists.");
         return UserResponse.From(customer);
     }
 }
 
-// ---------- Crear o actualizar cliente por teléfono (n8n) ----------
+// ---------- Create or update customer by phone (n8n) ----------
 public sealed record UpsertCustomerResult(UserResponse Customer, bool Created);
 
 public sealed record UpsertCustomerCommand(UpsertCustomerRequest Data) : IRequest<UpsertCustomerResult>;
@@ -39,7 +40,7 @@ public sealed class UpsertCustomerHandler(IUserRepository users, UserGuard guard
 
         if (existing is not null)
         {
-            existing.UpdateProfile(r.FullName, r.Email ?? existing.Email, phone);
+            existing.UpdateProfile(r.FullName, null, r.Email ?? existing.Email, phone);
             existing.Activate();
             await users.SaveChangesAsync(ct);
             return new UpsertCustomerResult(UserResponse.From(existing), Created: false);

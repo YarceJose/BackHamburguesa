@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- IConfiguration, IOptions y logging para registrar servicios -->
+    <!-- IConfiguration, IOptions and logging for service registration -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 

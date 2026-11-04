@@ -8,6 +8,16 @@ public sealed class BcryptPasswordHasher : IPasswordHasher
 
     public string Hash(string password) => BCrypt.Net.BCrypt.EnhancedHashPassword(password, WorkFactor);
 
-    public bool Verify(string password, string passwordHash) =>
-        BCrypt.Net.BCrypt.EnhancedVerify(password, passwordHash);
+    /// <summary>A malformed stored hash (e.g. edited by hand in the database) counts as a wrong password, never a 500.</summary>
+    public bool Verify(string password, string passwordHash)
+    {
+        try
+        {
+            return BCrypt.Net.BCrypt.EnhancedVerify(password, passwordHash);
+        }
+        catch (BCrypt.Net.SaltParseException)
+        {
+            return false;
+        }
+    }
 }

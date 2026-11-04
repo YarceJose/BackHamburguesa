@@ -13,6 +13,12 @@ public class UserRepository(AppDBContext context) : IUserRepository
     public Task<User?> GetByEmailAsync(string normalizedEmail, CancellationToken ct) =>
         context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
 
+    public Task<User?> GetByUsernameAsync(string normalizedUsername, CancellationToken ct) =>
+        context.Users.FirstOrDefaultAsync(u => u.Username == normalizedUsername, ct);
+
+    public Task<bool> UsernameExistsAsync(string normalizedUsername, int? excludeUserId, CancellationToken ct) =>
+        context.Users.AnyAsync(u => u.Username == normalizedUsername && (excludeUserId == null || u.Id != excludeUserId), ct);
+
     public Task<User?> GetCustomerByPhoneAsync(string phone, CancellationToken ct) =>
         context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Customer && u.Phone == phone, ct);
 

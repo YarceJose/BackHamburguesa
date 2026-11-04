@@ -7,6 +7,8 @@ public interface IUserRepository
 {
     Task<User?> GetByIdAsync(int id, CancellationToken ct);
     Task<User?> GetByEmailAsync(string normalizedEmail, CancellationToken ct);
+    Task<User?> GetByUsernameAsync(string normalizedUsername, CancellationToken ct);
+    Task<bool> UsernameExistsAsync(string normalizedUsername, int? excludeUserId, CancellationToken ct);
     Task<User?> GetCustomerByPhoneAsync(string phone, CancellationToken ct);
     Task<bool> EmailExistsAsync(string normalizedEmail, int? excludeUserId, CancellationToken ct);
     Task<List<User>> GetAllAsync(UserRole? role, bool includeInactive, CancellationToken ct);
