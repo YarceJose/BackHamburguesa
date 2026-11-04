@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
-/// <summary>User management. Only an Admin creates, edits and deactivates users (no self sign-up).</summary>
+/// <summary>User management (admin, cook, delivery). Only an Admin creates, edits and deactivates users.</summary>
 [ApiController]
 [Route("api/users")]
 [Authorize(Policy = Policies.AdminOnly)]
@@ -27,10 +27,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<UserResponse>> GetById(int id, CancellationToken ct) =>
         Ok(await mediator.Send(new GetUserByIdQuery(id), ct));
 
-    /// <summary>
-    /// Creates a user. Admin/Cook/Delivery require email and password.
-    /// Customer requires a phone and has no password.
-    /// </summary>
+    /// <summary>Creates an admin, cook or delivery user (username and password required).</summary>
     [HttpPost]
     [ProducesResponseType<UserResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]

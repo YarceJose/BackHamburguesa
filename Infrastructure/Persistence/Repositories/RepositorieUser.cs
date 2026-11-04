@@ -19,9 +19,6 @@ public class UserRepository(AppDBContext context) : IUserRepository
     public Task<bool> UsernameExistsAsync(string normalizedUsername, int? excludeUserId, CancellationToken ct) =>
         context.Users.AnyAsync(u => u.Username == normalizedUsername && (excludeUserId == null || u.Id != excludeUserId), ct);
 
-    public Task<User?> GetCustomerByPhoneAsync(string phone, CancellationToken ct) =>
-        context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Customer && u.Phone == phone, ct);
-
     public Task<bool> EmailExistsAsync(string normalizedEmail, int? excludeUserId, CancellationToken ct) =>
         context.Users.AnyAsync(u => u.Email == normalizedEmail && (excludeUserId == null || u.Id != excludeUserId), ct);
 

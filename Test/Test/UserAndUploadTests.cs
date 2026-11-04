@@ -27,14 +27,6 @@ public class UserAndUploadTests
             Assert.Throws<DomainException>(() => User.CreateStaff("X Y", username, null, null, "hash", UserRole.Cook)).Code);
 
     [Fact]
-    public void Customers_have_no_credentials()
-    {
-        var customer = User.CreateCustomer("Ana", "3009998877", null);
-        Assert.Null(customer.Username);
-        Assert.False(customer.CanLogin);
-    }
-
-    [Fact]
     public async Task Png_receipt_is_accepted()
     {
         byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0];

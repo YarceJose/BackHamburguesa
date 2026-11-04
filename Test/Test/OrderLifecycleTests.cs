@@ -1,3 +1,4 @@
+using Domain.Entities;
 using Domain.Enums;
 using Domain.Errors;
 using Domain.Exceptions;
@@ -100,6 +101,20 @@ public class OrderLifecycleTests
         order.MarkDelivered(Now);
         Assert.Throws<DomainException>(() => order.Cancel("x", Now));
     }
+
+    [Fact]
+    public void Customer_data_is_stored_in_the_order()
+    {
+        var order = Order.Create("CUS001", "  Pedro Pérez ", " 3111111111 ", null, "Vereda San José",
+            [(Burger(), 1)], PaymentMethod.Cash, null, 25, Now);
+        Assert.Equal("Pedro Pérez", order.CustomerName);
+        Assert.Equal("3111111111", order.CustomerPhone);
+    }
+
+    [Fact]
+    public void Order_without_customer_phone_is_rejected() =>
+        Assert.Equal(ErrorCodes.CustomerPhoneRequired, Assert.Throws<DomainException>(() =>
+            Order.Create("CUS002", "Pedro", " ", 1, "Centro", [(Burger(), 1)], PaymentMethod.Cash, null, 25, Now)).Code);
 
     [Fact]
     public void Empty_order_and_bad_quantities_are_rejected()

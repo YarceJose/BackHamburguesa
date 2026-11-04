@@ -25,7 +25,6 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.PaymentRejectReason).HasMaxLength(200);
         builder.Property(o => o.CancelReason).HasMaxLength(200);
 
-        builder.HasOne<User>().WithMany().HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<User>().WithMany().HasForeignKey(o => o.CookId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne<User>().WithMany().HasForeignKey(o => o.DeliveryUserId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne<Sector>().WithMany().HasForeignKey(o => o.SectorId).OnDelete(DeleteBehavior.SetNull);
@@ -35,6 +34,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.HasIndex(o => o.Status);
         builder.HasIndex(o => o.CreatedAt);
+        builder.HasIndex(o => o.CustomerPhone); // a customer's previous orders
     }
 }
 

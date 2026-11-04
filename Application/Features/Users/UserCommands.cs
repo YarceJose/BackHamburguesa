@@ -10,7 +10,7 @@ using Domain.Errors;
 namespace Application.Features.Users;
 
 // ---------- Create ----------
-/// <summary>Admin/Cook/Delivery require username and password. Customer requires a phone and has no credentials.</summary>
+/// <summary>Every user (admin, cook, delivery) needs a username and a password.</summary>
 public sealed record CreateUserCommand(CreateUserRequest Data) : IRequest<UserResponse>;
 
 public sealed class CreateUserHandler(IUserRepository users, IPasswordHasher hasher, UserGuard guard)
@@ -19,33 +19,15 @@ public sealed class CreateUserHandler(IUserRepository users, IPasswordHasher has
     public async Task<UserResponse> Handle(CreateUserCommand cmd, CancellationToken ct)
     {
         var r = cmd.Data;
-        User user;
+        if (string.IsNullOrWhiteSpace(r.Username))
+            throw new BusinessRuleException(ErrorCodes.UserUsernameRequired, "Username is required.");
+        if (string.IsNullOrWhiteSpace(r.Password))
+            throw new BusinessRuleException(ErrorCodes.UserPasswordRequired, "Password is required.");
 
-        if (r.Role.IsStaff())
-        {
-            if (string.IsNullOrWhiteSpace(r.Username))
-                throw new BusinessRuleException(ErrorCodes.UserUsernameRequired, "Username is required for Admin, Cook and Delivery.");
-            if (string.IsNullOrWhiteSpace(r.Password))
-                throw new BusinessRuleException(ErrorCodes.UserPasswordRequired, "Password is required for Admin, Cook and Delivery.");
-
-            await guard.EnsureUsernameIsFreeAsync(r.Username, null, ct);
-            if (!string.IsNullOrWhiteSpace(r.Email))
-                await guard.EnsureEmailIsFreeAsync(r.Email, null, ct);
-            user = User.CreateStaff(r.FullName, r.Username, r.Email, r.Phone, hasher.Hash(r.Password), r.Role);
-        }
-        else
-        {
-            if (!string.IsNullOrEmpty(r.Password) || !string.IsNullOrEmpty(r.Username))
-                throw new BusinessRuleException(ErrorCodes.CustomerPasswordNotAllowed, "Customers have no credentials: they never register or sign in.");
-            if (string.IsNullOrWhiteSpace(r.Phone))
-                throw new BusinessRuleException(ErrorCodes.CustomerPhoneRequired, "Phone is required for a customer.");
-            if (await users.GetCustomerByPhoneAsync(r.Phone.Trim(), ct) is not null)
-                throw new ConflictException(ErrorCodes.CustomerPhoneTaken, "A customer with that phone already exists.");
-            if (!string.IsNullOrWhiteSpace(r.Email))
-                await guard.EnsureEmailIsFreeAsync(r.Email, null, ct);
-
-            user = User.CreateCustomer(r.FullName, r.Phone, r.Email);
-        }
+        await guard.EnsureUsernameIsFreeAsync(r.Username, null, ct);
+        if (!string.IsNullOrWhiteSpace(r.Email))
+            await guard.EnsureEmailIsFreeAsync(r.Email, null, ct);
+        var user = User.CreateStaff(r.FullName, r.Username, r.Email, r.Phone, hasher.Hash(r.Password), r.Role);
 
         await users.AddAsync(user, ct);
         await users.SaveChangesAsync(ct);
@@ -66,7 +48,7 @@ public sealed class UpdateUserHandler(IUserRepository users, UserGuard guard, Us
 
         if (!string.IsNullOrWhiteSpace(r.Email))
             await guard.EnsureEmailIsFreeAsync(r.Email, user.Id, ct);
-        if (user.Role.IsStaff() && !string.IsNullOrWhiteSpace(r.Username))
+        if (!string.IsNullOrWhiteSpace(r.Username))
             await guard.EnsureUsernameIsFreeAsync(r.Username, user.Id, ct);
 
         if (user.Role == UserRole.Admin && r.Role != UserRole.Admin)

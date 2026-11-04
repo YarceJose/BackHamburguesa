@@ -1,16 +1,14 @@
 namespace Domain.Enums;
 
 /// <summary>
-/// Store roles.
-/// Admin, Cook and Delivery are staff: they have credentials and sign in from Front-Hamburguesa.
-/// Customer does NOT register or sign in; it is only stored to be linked to orders.
+/// Roles of the people who sign in. Customers are not users: their name, phone and sector
+/// are stored only in each order.
 /// </summary>
 public enum UserRole
 {
     Admin = 1,
     Cook = 2,
-    Delivery = 3,
-    Customer = 4
+    Delivery = 3
 }
 
 public static class UserRoleExtensions

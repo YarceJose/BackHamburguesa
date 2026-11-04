@@ -61,7 +61,7 @@ public partial class Program
             // --- API layer services ---
             builder.Services
                 .AddControllers()
-                // Enums travel as text: "Admin", "Cook", "Delivery", "Customer"
+                // Enums travel as text: "Admin", "Cook", "Delivery", "Cash", "Received"…
                 .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
             builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
             {

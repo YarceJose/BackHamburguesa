@@ -31,11 +31,6 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         // Email is stored normalized (lowercase); Postgres allows several NULLs in a unique index.
         builder.HasIndex(u => u.Email).IsUnique();
 
-        // A customer is identified by phone (that is how n8n looks them up).
-        builder.HasIndex(u => u.Phone)
-            .IsUnique()
-            .HasFilter($"\"Role\" = '{nameof(UserRole.Customer)}'")
-            .HasDatabaseName("IX_Users_Phone_Customer");
 
         builder.HasIndex(u => u.Role);
     }

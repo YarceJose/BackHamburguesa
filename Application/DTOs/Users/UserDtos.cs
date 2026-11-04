@@ -5,15 +5,14 @@ using Domain.Enums;
 namespace Application.DTOs.Users;
 
 /// <summary>
-/// Creates a user. Admin/Cook/Delivery require username and password (email optional).
-/// Customer requires a phone and must NOT send a username or password.
+/// Creates a user (admin, cook or delivery). Username and password are required; email and phone are optional.
 /// </summary>
 public sealed record CreateUserRequest(
     [Required, StringLength(120, MinimumLength = 2)] string FullName,
-    [StringLength(30, MinimumLength = 3)] string? Username,
+    [Required, StringLength(30, MinimumLength = 3)] string Username,
     [EmailAddress, StringLength(150)] string? Email,
     [Phone, StringLength(20)] string? Phone,
-    [StringLength(100, MinimumLength = 8)] string? Password,
+    [Required, StringLength(100, MinimumLength = 8)] string Password,
     [Required, EnumDataType(typeof(UserRole))] UserRole Role);
 
 public sealed record UpdateUserRequest(

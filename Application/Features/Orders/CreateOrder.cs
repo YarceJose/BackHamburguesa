@@ -14,14 +14,13 @@ namespace Application.Features.Orders;
 /// <summary>Transfer orders come back as AwaitingPayment: the client shows the QR and asks for the receipt.</summary>
 public sealed record OrderCreatedResponse(string Code, OrderStatus Status, PaymentMethod PaymentMethod, decimal Total, int EstimatedMinutes, DateTime CreatedAt);
 
-/// <summary>A customer places an order without signing in. The customer record is created or updated by phone.</summary>
+/// <summary>A customer places an order without signing in. Their data is stored only in the order (customers are not users).</summary>
 public sealed record CreateOrderCommand(CreateOrderRequest Data) : IRequest<OrderCreatedResponse>;
 
 public sealed class CreateOrderHandler(
     IOrderRepository orders,
     IProductRepository products,
     ISectorRepository sectors,
-    IUserRepository users,
     IStoreSettingsRepository settingsRepo,
     IPaymentAccountRepository paymentAccounts,
     StoreStatusReader statusReader,
@@ -73,28 +72,13 @@ public sealed class CreateOrderHandler(
         if (found.Count != lines.Count)
             throw new NotFoundException(ErrorCodes.ProductNotFound, "One or more products are no longer available.");
 
-        // 4. Customer by phone (created on first order, name refreshed afterwards)
-        var phone = r.CustomerPhone.Trim();
-        var customer = await users.GetCustomerByPhoneAsync(phone, ct);
-        if (customer is null)
-        {
-            customer = User.CreateCustomer(r.CustomerName, phone, null);
-            await users.AddAsync(customer, ct);
-        }
-        else
-        {
-            customer.UpdateProfile(r.CustomerName, null, customer.Email, phone);
-            customer.Activate();
-        }
-        await users.SaveChangesAsync(ct);
-
-        // 5. Estimated time grows with the kitchen load
+        // 4. Estimated time grows with the kitchen load
         var estimate = OrderTiming.EstimateMinutes(settings, await orders.CountInKitchenAsync(ct));
 
         var code = OrderCode.New();
         while (await orders.CodeExistsAsync(code, ct)) code = OrderCode.New();
 
-        var order = Order.Create(code, customer, sectorId, sectorName,
+        var order = Order.Create(code, r.CustomerName, r.CustomerPhone, sectorId, sectorName,
             lines.Select(l => (found[l.ProductId], l.Quantity)), r.PaymentMethod, r.CashAmount, estimate, now);
         await orders.AddAsync(order, ct);
         await orders.SaveChangesAsync(ct);

@@ -51,9 +51,6 @@ namespace Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("CustomerId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("CustomerName")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -138,7 +135,7 @@ namespace Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAt");
 
-                    b.HasIndex("CustomerId");
+                    b.HasIndex("CustomerPhone");
 
                     b.HasIndex("DeliveryUserId");
 
@@ -406,11 +403,6 @@ namespace Infrastructure.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("Phone")
-                        .IsUnique()
-                        .HasDatabaseName("IX_Users_Phone_Customer")
-                        .HasFilter("\"Role\" = 'Customer'");
-
                     b.HasIndex("Role");
 
                     b.HasIndex("Username")
@@ -425,12 +417,6 @@ namespace Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CookId")
                         .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Domain.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
 
                     b.HasOne("Domain.Entities.User", null)
                         .WithMany()

@@ -18,15 +18,12 @@ public static class ErrorCodes
     public const string UserPasswordRequired = "user.password_required";
     public const string UserEmailTaken = "user.email_taken";
     public const string UserRoleNotStaff = "user.role_not_staff";
-    public const string UserRoleChangeNotAllowed = "user.role_change_not_allowed";
     public const string UserCannotDemoteSelf = "user.cannot_demote_self";
     public const string UserCannotDeactivateSelf = "user.cannot_deactivate_self";
     public const string UserLastAdmin = "user.last_admin";
 
-    public const string CustomerNotFound = "customer.not_found";
     public const string CustomerPhoneRequired = "customer.phone_required";
-    public const string CustomerPhoneTaken = "customer.phone_taken";
-    public const string CustomerPasswordNotAllowed = "customer.password_not_allowed";
+    public const string CustomerNameRequired = "customer.name_required";
 
     public const string StoreClosed = "store.closed";
     public const string StoreAtCapacity = "store.at_capacity";

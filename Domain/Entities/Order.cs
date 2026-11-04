@@ -15,7 +15,7 @@ public sealed class Order
     /// <summary>Short public code: the customer follows the order with it and writes it in the transfer description.</summary>
     public string Code { get; private set; } = null!;
 
-    public int CustomerId { get; private set; }
+    /// <summary>The customer is not a user: who ordered is kept only here.</summary>
     public string CustomerName { get; private set; } = null!;
     public string CustomerPhone { get; private set; } = null!;
 
@@ -56,19 +56,22 @@ public sealed class Order
 
     public IReadOnlyCollection<OrderItem> Items => _items;
 
-    public static Order Create(string code, User customer, int? sectorId, string sectorName,
+    public static Order Create(string code, string customerName, string customerPhone, int? sectorId, string sectorName,
         IEnumerable<(Product Product, int Quantity)> lines, PaymentMethod paymentMethod, decimal? cashAmount,
         int estimatedMinutes, DateTime now)
     {
+        if (string.IsNullOrWhiteSpace(customerName))
+            throw new DomainException(ErrorCodes.CustomerNameRequired, "The customer name is required.");
+        if (string.IsNullOrWhiteSpace(customerPhone))
+            throw new DomainException(ErrorCodes.CustomerPhoneRequired, "The customer phone is required.");
         if (string.IsNullOrWhiteSpace(sectorName))
             throw new DomainException(ErrorCodes.SectorRequired, "The delivery sector is required.");
 
         var order = new Order
         {
             Code = code,
-            CustomerId = customer.Id,
-            CustomerName = customer.FullName,
-            CustomerPhone = customer.Phone ?? string.Empty,
+            CustomerName = customerName.Trim(),
+            CustomerPhone = customerPhone.Trim(),
             SectorId = sectorId,
             SectorName = sectorName.Trim(),
             PaymentMethod = paymentMethod,

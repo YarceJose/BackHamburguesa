@@ -11,7 +11,7 @@ public sealed partial class User
 
     public int Id { get; private set; }
     public string FullName { get; private set; } = null!;
-    /// <summary>Sign-in name for staff (admin, cook, delivery). Customers have none.</summary>
+    /// <summary>Sign-in name (admin, cook, delivery).</summary>
     public string? Username { get; private set; }
     public string? Email { get; private set; }
     public string? Phone { get; private set; }
@@ -29,7 +29,7 @@ public sealed partial class User
     /// </summary>
     public string SecurityStamp { get; private set; } = NewStamp();
 
-    /// <summary>Only active staff with a password can sign in. Customers never can.</summary>
+    /// <summary>Only active users with a password can sign in.</summary>
     public bool CanLogin => Role.IsStaff() && IsActive && PasswordHash is not null;
 
     /// <summary>Creates a staff user (admin, cook or delivery) who signs in with username and password.</summary>
@@ -51,40 +51,21 @@ public sealed partial class User
         };
     }
 
-    /// <summary>Creates a customer. Customers have no password: they never register or sign in.</summary>
-    public static User CreateCustomer(string fullName, string phone, string? email)
-    {
-        if (string.IsNullOrWhiteSpace(phone))
-            throw new DomainException(ErrorCodes.CustomerPhoneRequired, "Phone is required for a customer.");
-
-        return new User
-        {
-            FullName = NormalizeName(fullName),
-            Email = string.IsNullOrWhiteSpace(email) ? null : NormalizeEmail(email),
-            Phone = NormalizePhone(phone),
-            PasswordHash = null,
-            Role = UserRole.Customer
-        };
-    }
-
     public void UpdateProfile(string fullName, string? username, string? email, string? phone)
     {
-        if (Role == UserRole.Customer && string.IsNullOrWhiteSpace(phone))
-            throw new DomainException(ErrorCodes.CustomerPhoneRequired, "Phone is required for a customer.");
-
         FullName = NormalizeName(fullName);
-        if (Role.IsStaff()) Username = NormalizeUsername(username);
+        Username = NormalizeUsername(username);
         Email = string.IsNullOrWhiteSpace(email) ? null : NormalizeEmail(email);
         Phone = NormalizePhone(phone);
         Touch();
     }
 
-    /// <summary>Roles only change among staff roles: a customer never gains credentials.</summary>
+    /// <summary>Changing the role signs the user out (their tokens carry the old role).</summary>
     public void ChangeRole(UserRole newRole)
     {
         if (newRole == Role) return;
-        if (!Role.IsStaff() || !newRole.IsStaff())
-            throw new DomainException(ErrorCodes.UserRoleChangeNotAllowed, "A customer cannot become staff and staff cannot become a customer.");
+        if (!newRole.IsStaff())
+            throw new DomainException(ErrorCodes.UserRoleNotStaff, "Unknown role.");
 
         Role = newRole;
         RotateSecurityStamp();
@@ -93,9 +74,6 @@ public sealed partial class User
 
     public void ChangePassword(string newPasswordHash)
     {
-        if (!Role.IsStaff())
-            throw new DomainException(ErrorCodes.CustomerPasswordNotAllowed, "Customers do not have a password.");
-
         PasswordHash = newPasswordHash;
         RotateSecurityStamp();
         Touch();
