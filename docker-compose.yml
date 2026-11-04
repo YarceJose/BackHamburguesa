@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_HOST_PORT:-5433}:5432"   # 5433 on the host (5432 is taken); lets `dotnet run` use this Postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"        # avoid 5000: macOS AirPlay Receiver uses it
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development   # Swagger is only exposed in Development (or with Swagger__Enabled=true)
+      # Inside the Docker network the Postgres host is the "db" service, not localhost
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}
+      Jwt__Key: ${JWT_KEY}
+      # Kitchen and delivery sessions also end when the admin presses "Cerrar jornada"
+      Jwt__ExpirationMinutes: ${JWT_EXPIRATION_MINUTES:-1440}
+      Cors__AllowedOrigins__0: ${FRONT_URL:-http://localhost:5173}
+      N8n__BaseUrl: http://n8n:5678
+      N8n__ApiKey: ${N8N_API_KEY}
+      # n8n "Webhook" node that turns order events into WhatsApp messages (n8n/pedidos-whatsapp.json)
+      N8n__OrdersWebhookUrl: ${N8N_ORDERS_WEBHOOK_URL:-http://n8n:5678/webhook/pedidos}
+      # Payment receipts and QR images live in the api_data volume
+      Storage__Root: /app/data
+      # Starter menu and sector list (only when the tables are empty)
+      Seed__DemoData: "true"
+    volumes:
+      - api_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    ports:
+      - "5678:5678"
+    environment:
+      GENERIC_TIMEZONE: America/Bogota
+      TZ: America/Bogota
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      # In workflows use {{ $env.BACKEND_API_URL }} and the header X-Api-Key = {{ $env.BACKEND_API_KEY }}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      BACKEND_API_URL: http://api:8080
+      BACKEND_API_KEY: ${N8N_API_KEY}
+      # WhatsApp Business Cloud API (Meta). Leave empty until the account is set up.
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_STAFF_NUMBER: ${WHATSAPP_STAFF_NUMBER:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  n8n_data:
+  api_data:

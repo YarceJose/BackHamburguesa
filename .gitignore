@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# .NET build output
+**/bin/
+**/obj/
+
+# Logs
+**/logs/
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+.DS_Store
