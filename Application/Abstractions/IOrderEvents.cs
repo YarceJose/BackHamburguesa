@@ -21,4 +21,6 @@ public interface IOrderEvents
     Task StoreStatusChangedAsync(StoreStatusResponse status, CancellationToken ct);
     /// <summary>"Cerrar jornada": kitchen and delivery screens must sign out.</summary>
     Task StaffSessionsRevokedAsync(CancellationToken ct);
+    /// <summary>One user was deactivated or got a new password/role: their screens must sign out.</summary>
+    Task UserSessionRevokedAsync(int userId, CancellationToken ct);
 }

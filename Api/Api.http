@@ -7,7 +7,7 @@
 POST {{Api_HostAddress}}/api/auth/login
 Content-Type: application/json
 
-{ "username": "admin", "password": "ADMIN_PASSWORD-from-.env" }
+{ "username": "admin", "password": "your-admin-password" }
 
 ### Current user profile
 GET {{Api_HostAddress}}/api/auth/me

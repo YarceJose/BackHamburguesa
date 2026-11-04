@@ -10,7 +10,7 @@ namespace Api.Realtime;
 /// <summary>
 /// Sends order events to the staff screens (SignalR, by role) and to n8n (WhatsApp).
 /// Client method names: orderCreated, paymentSubmitted, orderConfirmed, orderUpdated,
-/// orderDelayed, orderEscalated, storeStatus, sessionsRevoked.
+/// orderDelayed, orderEscalated, storeStatus, sessionsRevoked, sessionRevoked (one user).
 /// </summary>
 public sealed class OrderEventsPublisher(IHubContext<OrdersHub> hub, N8nWebhook n8n, ILogger<OrderEventsPublisher> logger) : IOrderEvents
 {
@@ -64,6 +64,9 @@ public sealed class OrderEventsPublisher(IHubContext<OrdersHub> hub, N8nWebhook 
 
     public Task StaffSessionsRevokedAsync(CancellationToken ct) =>
         PushAsync([Cook, Delivery], "sessionsRevoked", new { at = DateTime.UtcNow }, ct);
+
+    public Task UserSessionRevokedAsync(int userId, CancellationToken ct) =>
+        PushAsync([OrdersHub.UserGroup(userId)], "sessionRevoked", new { at = DateTime.UtcNow }, ct);
 
     private async Task PushAsync(IReadOnlyList<string> groups, string method, object payload, CancellationToken ct)
     {

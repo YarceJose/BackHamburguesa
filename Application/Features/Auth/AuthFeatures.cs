@@ -45,7 +45,7 @@ public sealed class GetProfileHandler(UserGuard guard) : IRequestHandler<GetProf
 // ---------- Change own password ----------
 public sealed record ChangeOwnPasswordCommand(int UserId, ChangePasswordRequest Data) : IRequest;
 
-public sealed class ChangeOwnPasswordHandler(IUserRepository users, IPasswordHasher hasher, UserGuard guard)
+public sealed class ChangeOwnPasswordHandler(IUserRepository users, IPasswordHasher hasher, UserGuard guard, UserSessions sessions)
     : IRequestHandler<ChangeOwnPasswordCommand, Unit>
 {
     public async Task<Unit> Handle(ChangeOwnPasswordCommand cmd, CancellationToken ct)
@@ -55,8 +55,10 @@ public sealed class ChangeOwnPasswordHandler(IUserRepository users, IPasswordHas
         if (!user.CanLogin || !hasher.Verify(cmd.Data.CurrentPassword, user.PasswordHash!))
             throw new BusinessRuleException(ErrorCodes.WrongCurrentPassword, "The current password is incorrect.");
 
+        var stamp = user.SecurityStamp;
         user.ChangePassword(hasher.Hash(cmd.Data.NewPassword));
         await users.SaveChangesAsync(ct);
+        await sessions.RevokeIfChangedAsync(user, stamp, ct); // other devices sign out; this one signs in again
         return Unit.Value;
     }
 }

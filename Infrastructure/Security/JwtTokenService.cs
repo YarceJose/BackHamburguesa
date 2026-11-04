@@ -30,6 +30,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IToken
                 new Claim(JwtRegisteredClaimNames.Name, user.FullName),
                 new Claim(JwtRegisteredClaimNames.PreferredUsername, user.Username ?? string.Empty),
                 new Claim("role", user.Role.ToString()),
+                new Claim(SessionClaims.Stamp, user.SecurityStamp),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             ])
         };

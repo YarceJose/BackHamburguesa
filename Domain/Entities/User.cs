@@ -23,6 +23,12 @@ public sealed partial class User
     public DateTime? LastLoginAt { get; private set; }
     public DateTime? DeletedAt { get; private set; }
 
+    /// <summary>
+    /// Random value copied into every JWT. It changes when the user is deactivated, gets a new password
+    /// or a new role, which invalidates all their open sessions at once.
+    /// </summary>
+    public string SecurityStamp { get; private set; } = NewStamp();
+
     /// <summary>Only active staff with a password can sign in. Customers never can.</summary>
     public bool CanLogin => Role.IsStaff() && IsActive && PasswordHash is not null;
 
@@ -81,6 +87,7 @@ public sealed partial class User
             throw new DomainException(ErrorCodes.UserRoleChangeNotAllowed, "A customer cannot become staff and staff cannot become a customer.");
 
         Role = newRole;
+        RotateSecurityStamp();
         Touch();
     }
 
@@ -90,6 +97,7 @@ public sealed partial class User
             throw new DomainException(ErrorCodes.CustomerPasswordNotAllowed, "Customers do not have a password.");
 
         PasswordHash = newPasswordHash;
+        RotateSecurityStamp();
         Touch();
     }
 
@@ -103,6 +111,7 @@ public sealed partial class User
         if (!IsActive) return;
         IsActive = false;
         DeletedAt = DateTime.UtcNow;
+        RotateSecurityStamp();
         Touch();
     }
 
@@ -113,6 +122,11 @@ public sealed partial class User
         DeletedAt = null;
         Touch();
     }
+
+    /// <summary>Signs the user out everywhere (their current tokens stop working).</summary>
+    public void RotateSecurityStamp() => SecurityStamp = NewStamp();
+
+    private static string NewStamp() => Guid.NewGuid().ToString("N");
 
     public static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 

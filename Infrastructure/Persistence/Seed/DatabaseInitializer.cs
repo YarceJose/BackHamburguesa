@@ -1,7 +1,6 @@
 using Application.Abstractions;
 using Domain.Entities;
 using Domain.Enums;
-using Domain.Ports;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,8 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Applies pending migrations, makes sure the store settings row exists, creates the first Admin if none exists
-/// and, when <c>Seed:DemoData</c> is on, a starter menu and sector list the admin can edit.
+/// Applies pending migrations, makes sure the store settings row exists and, when <c>Seed:DemoData</c> is on,
+/// a starter menu and sector list the admin can edit.
+/// Users never come from configuration: they live only in the database (first admin: <c>create-admin</c> command).
 /// </summary>
 public static class DatabaseInitializer
 {
@@ -39,30 +39,11 @@ public static class DatabaseInitializer
         // Tokens issued before the last "Cerrar jornada" stay invalid after a restart
         sp.GetRequiredService<ISessionRevocation>().Set(settings.StaffSessionsRevokedAt);
 
-        await SeedAdminAsync(db, config, sp.GetRequiredService<IPasswordHasher>(), logger, ct);
+        if (!await db.Users.AnyAsync(u => u.Role == UserRole.Admin && u.IsActive, ct))
+            logger.LogWarning("No active admin exists. Create one with: docker compose exec -it api dotnet Api.dll create-admin --username admin");
 
         if (config.GetValue("Seed:DemoData", false))
             await SeedDemoDataAsync(db, logger, ct);
-    }
-
-    private static async Task SeedAdminAsync(AppDBContext db, IConfiguration config, IPasswordHasher hasher, ILogger logger, CancellationToken ct)
-    {
-        if (await db.Users.AnyAsync(u => u.Role == UserRole.Admin, ct))
-            return;
-
-        var username = config["Seed:Admin:Username"] ?? "admin";
-        var password = config["Seed:Admin:Password"];
-        if (string.IsNullOrWhiteSpace(password))
-        {
-            logger.LogWarning("No Admin exists and Seed:Admin:Password is missing: the initial admin was not created.");
-            return;
-        }
-
-        var admin = User.CreateStaff(config["Seed:Admin:FullName"] ?? "Administrator", username, config["Seed:Admin:Email"],
-            null, hasher.Hash(password), UserRole.Admin);
-        db.Users.Add(admin);
-        await db.SaveChangesAsync(ct);
-        logger.LogInformation("Initial admin created: {Username}", admin.Username);
     }
 
     private static async Task SeedDemoDataAsync(AppDBContext db, ILogger logger, CancellationToken ct)

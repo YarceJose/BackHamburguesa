@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddSingleton<IToken, JwtTokenService>();
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
         services.AddSingleton<ISessionRevocation, SessionRevocationCache>();
+        services.AddSingleton<IUserSessionStamps, UserSessionStampCache>();
 
         return services;
     }

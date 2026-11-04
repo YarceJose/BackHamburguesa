@@ -28,6 +28,7 @@ public static class DependencyInjection
             services.AddScoped(service, implementation);
 
         services.AddScoped<UserGuard>();
+        services.AddScoped<UserSessions>();
         services.AddScoped<Features.Store.StoreStatusReader>();
 
         // Product use case (not migrated to the mediator yet)

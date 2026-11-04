@@ -14,6 +14,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(u => u.FullName).IsRequired().HasMaxLength(120);
         builder.Property(u => u.Username).HasMaxLength(30);
+        builder.Property(u => u.SecurityStamp).HasMaxLength(32).IsRequired();
         builder.Property(u => u.Email).HasMaxLength(150);
         builder.Property(u => u.Phone).HasMaxLength(20);
         builder.Property(u => u.PasswordHash).HasMaxLength(100);

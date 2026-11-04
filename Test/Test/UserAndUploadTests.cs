@@ -59,3 +59,51 @@ public class UserAndUploadTests
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
             UploadRules.ReadValidatedAsync(new UploadedFile(Stream.Null, UploadRules.MaxBytes + 1), true, default));
 }
+
+public class SecurityStampTests
+{
+    private static User Cook() => User.CreateStaff("Usuario Cocina", "cocina", null, null, "hash", UserRole.Cook);
+
+    [Fact]
+    public void Deactivating_rotates_the_stamp()
+    {
+        var user = Cook();
+        var before = user.SecurityStamp;
+        user.Deactivate();
+        Assert.NotEqual(before, user.SecurityStamp);
+    }
+
+    [Fact]
+    public void New_password_rotates_the_stamp()
+    {
+        var user = Cook();
+        var before = user.SecurityStamp;
+        user.ChangePassword("new-hash");
+        Assert.NotEqual(before, user.SecurityStamp);
+    }
+
+    [Fact]
+    public void New_role_rotates_the_stamp_but_same_role_does_not()
+    {
+        var user = Cook();
+        var before = user.SecurityStamp;
+        user.ChangeRole(UserRole.Cook);
+        Assert.Equal(before, user.SecurityStamp);
+        user.ChangeRole(UserRole.Delivery);
+        Assert.NotEqual(before, user.SecurityStamp);
+    }
+
+    [Fact]
+    public void Profile_changes_and_reactivation_keep_the_stamp()
+    {
+        var user = Cook();
+        var before = user.SecurityStamp;
+        user.UpdateProfile("Otro Nombre", "cocina", null, "3001234567");
+        user.RegisterLogin();
+        Assert.Equal(before, user.SecurityStamp);
+    }
+
+    [Fact]
+    public void Every_user_gets_a_different_stamp() =>
+        Assert.NotEqual(Cook().SecurityStamp, Cook().SecurityStamp);
+}

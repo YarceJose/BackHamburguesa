@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Api.Commands;
 using Api.Middleware;
 using Api.Realtime;
 using Api.Workers;
@@ -150,17 +151,30 @@ public partial class Program
                                 context.Token = token;
                             return Task.CompletedTask;
                         },
-                        // "Cerrar jornada" invalidates kitchen and delivery tokens issued before it (admin is never affected)
-                        OnTokenValidated = context =>
+                        OnTokenValidated = async context =>
                         {
-                            var revocation = context.HttpContext.RequestServices.GetRequiredService<ISessionRevocation>();
+                            var services = context.HttpContext.RequestServices;
+                            var claims = context.Principal;
+
+                            // "Cerrar jornada" invalidates kitchen and delivery tokens issued before it (admin is never affected)
+                            var revocation = services.GetRequiredService<ISessionRevocation>();
                             if (context.SecurityToken is JsonWebToken token
-                                && Enum.TryParse<UserRole>(context.Principal?.FindFirst("role")?.Value, out var role)
+                                && Enum.TryParse<UserRole>(claims?.FindFirst("role")?.Value, out var role)
                                 && OrderTiming.IsSessionRevoked(role, token.IssuedAt, revocation.StaffSessionsRevokedAt))
                             {
                                 context.Fail("Session closed by the administrator.");
+                                return;
                             }
-                            return Task.CompletedTask;
+
+                            // The user was deactivated or got a new password/role after this token was issued
+                            var stamps = services.GetRequiredService<IUserSessionStamps>();
+                            var tokenStamp = claims?.FindFirst(SessionClaims.Stamp)?.Value;
+                            if (!int.TryParse(claims?.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var userId)
+                                || tokenStamp is null
+                                || tokenStamp != await stamps.GetAsync(userId, context.HttpContext.RequestAborted))
+                            {
+                                context.Fail("Session no longer valid.");
+                            }
                         }
                     };
                 })
@@ -208,8 +222,15 @@ public partial class Program
 
             var app = builder.Build();
 
-            // Migrations + initial Admin (only an Admin can create users)
+            // Migrations + store settings (users are never created from configuration)
             await DatabaseInitializer.InitializeAsync(app.Services);
+
+            // One-time console command: create an administrator in the database, then exit
+            if (args.FirstOrDefault() == CreateAdminCommand.Name)
+            {
+                Environment.ExitCode = await CreateAdminCommand.RunAsync(app.Services, args);
+                return;
+            }
 
             // --- Pipeline (order matters) ---
             // The exception handler goes first so request logging

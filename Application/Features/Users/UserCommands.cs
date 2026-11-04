@@ -56,7 +56,7 @@ public sealed class CreateUserHandler(IUserRepository users, IPasswordHasher has
 // ---------- Update ----------
 public sealed record UpdateUserCommand(int Id, int CurrentUserId, UpdateUserRequest Data) : IRequest<UserResponse>;
 
-public sealed class UpdateUserHandler(IUserRepository users, UserGuard guard)
+public sealed class UpdateUserHandler(IUserRepository users, UserGuard guard, UserSessions sessions)
     : IRequestHandler<UpdateUserCommand, UserResponse>
 {
     public async Task<UserResponse> Handle(UpdateUserCommand cmd, CancellationToken ct)
@@ -76,10 +76,12 @@ public sealed class UpdateUserHandler(IUserRepository users, UserGuard guard)
             await guard.EnsureNotLastAdminAsync(user, ct);
         }
 
+        var stamp = user.SecurityStamp;
         user.UpdateProfile(r.FullName, r.Username ?? user.Username, r.Email, r.Phone);
         user.ChangeRole(r.Role);
 
         await users.SaveChangesAsync(ct);
+        await sessions.RevokeIfChangedAsync(user, stamp, ct); // a new role signs the user out
         return UserResponse.From(user);
     }
 }
@@ -87,14 +89,16 @@ public sealed class UpdateUserHandler(IUserRepository users, UserGuard guard)
 // ---------- Password reset (set by an Admin) ----------
 public sealed record ResetPasswordCommand(int Id, ResetPasswordRequest Data) : IRequest;
 
-public sealed class ResetPasswordHandler(IUserRepository users, IPasswordHasher hasher, UserGuard guard)
+public sealed class ResetPasswordHandler(IUserRepository users, IPasswordHasher hasher, UserGuard guard, UserSessions sessions)
     : IRequestHandler<ResetPasswordCommand, Unit>
 {
     public async Task<Unit> Handle(ResetPasswordCommand cmd, CancellationToken ct)
     {
         var user = await guard.FindAsync(cmd.Id, ct);
+        var stamp = user.SecurityStamp;
         user.ChangePassword(hasher.Hash(cmd.Data.NewPassword));
         await users.SaveChangesAsync(ct);
+        await sessions.RevokeIfChangedAsync(user, stamp, ct);
         return Unit.Value;
     }
 }
@@ -102,7 +106,7 @@ public sealed class ResetPasswordHandler(IUserRepository users, IPasswordHasher 
 // ---------- Deactivate (soft delete) ----------
 public sealed record DeactivateUserCommand(int Id, int CurrentUserId) : IRequest;
 
-public sealed class DeactivateUserHandler(IUserRepository users, UserGuard guard)
+public sealed class DeactivateUserHandler(IUserRepository users, UserGuard guard, UserSessions sessions)
     : IRequestHandler<DeactivateUserCommand, Unit>
 {
     public async Task<Unit> Handle(DeactivateUserCommand cmd, CancellationToken ct)
@@ -113,8 +117,10 @@ public sealed class DeactivateUserHandler(IUserRepository users, UserGuard guard
             throw new BusinessRuleException(ErrorCodes.UserCannotDeactivateSelf, "You cannot deactivate your own user.");
         await guard.EnsureNotLastAdminAsync(user, ct);
 
+        var stamp = user.SecurityStamp;
         user.Deactivate();
         await users.SaveChangesAsync(ct);
+        await sessions.RevokeIfChangedAsync(user, stamp, ct);
         return Unit.Value;
     }
 }
