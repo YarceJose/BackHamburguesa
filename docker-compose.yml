@@ -1,0 +1,65 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_HOST_PORT:-5433}:5432"   # 5433 en tu Mac (el 5432 ya está ocupado); para `dotnet run` contra este Postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"        # no usar 5000: en macOS lo ocupa AirPlay Receiver
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development   # Swagger solo se expone en Development (o Swagger__Enabled=true)
+      # Dentro de la red de Docker el host de Postgres es el servicio "db", no localhost
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}
+      ConnectionStrings__Test: Host=db;Port=5432;Database=${DB_Test};Username=${DB_USER};Password=${DB_PASSWORD}
+      Jwt__Key: ${JWT_KEY}
+      Jwt__ExpirationMinutes: ${JWT_EXPIRATION_MINUTES:-480}
+      Cors__AllowedOrigins__0: ${FRONT_URL:-http://localhost:5173}
+      N8n__BaseUrl: http://n8n:5678
+      N8n__ApiKey: ${N8N_API_KEY}
+      Seed__Admin__FullName: ${ADMIN_FULLNAME:-Administrador}
+      Seed__Admin__Email: ${ADMIN_EMAIL}
+      Seed__Admin__Password: ${ADMIN_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    ports:
+      - "5678:5678"
+    environment:
+      GENERIC_TIMEZONE: America/Bogota
+      TZ: America/Bogota
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      # En los flujos usa {{ $env.BACKEND_API_URL }} y la cabecera X-Api-Key = {{ $env.BACKEND_API_KEY }}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      BACKEND_API_URL: http://api:8080
+      BACKEND_API_KEY: ${N8N_API_KEY}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  n8n_data:

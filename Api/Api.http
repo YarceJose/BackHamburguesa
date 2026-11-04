@@ -1,6 +1,43 @@
-@Api_HostAddress = http://localhost:5043
+# Con Docker: http://localhost:8080 — con `dotnet run`: http://localhost:5043
+@Api_HostAddress = http://localhost:8080
+@token = pega-aqui-el-token-del-login
+@n8nKey = pega-aqui-N8N_API_KEY-del-.env
 
-GET {{Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Login del personal (Admin, Cook, Delivery)
+POST {{Api_HostAddress}}/api/auth/login
+Content-Type: application/json
 
-###
+{ "email": "admin@hamburguesa.local", "password": "ADMIN_PASSWORD-del-.env" }
+
+### Mi perfil
+GET {{Api_HostAddress}}/api/auth/me
+Authorization: Bearer {{token}}
+
+### Listar usuarios (solo Admin) — filtros opcionales ?role=Cook&includeInactive=true
+GET {{Api_HostAddress}}/api/users
+Authorization: Bearer {{token}}
+
+### Crear cocinero (Cook) / domiciliario (Delivery) / admin (Admin)
+POST {{Api_HostAddress}}/api/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "fullName": "Carlos Cocina", "email": "cocina@hamburguesa.local", "phone": "3001112233", "password": "Cocina123!", "role": "Cook" }
+
+### Crear cliente (Customer): sin contraseña, teléfono obligatorio
+POST {{Api_HostAddress}}/api/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "fullName": "Ana Cliente", "phone": "3009998877", "role": "Customer" }
+
+### n8n: crear o actualizar cliente por teléfono
+POST {{Api_HostAddress}}/api/integrations/n8n/customers
+X-Api-Key: {{n8nKey}}
+Content-Type: application/json
+
+{ "fullName": "Ana Cliente", "phone": "3009998877" }
+
+### n8n: buscar cliente por teléfono
+GET {{Api_HostAddress}}/api/integrations/n8n/customers/3009998877
+X-Api-Key: {{n8nKey}}
