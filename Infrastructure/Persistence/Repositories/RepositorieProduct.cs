@@ -4,33 +4,29 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.Persistence.Repositories;
 
-public class ProductRepository : IProductRepository
+public class ProductRepository(AppDBContext context) : IProductRepository
 {
-    private readonly AppDBContext _context;
-
-    public ProductRepository(AppDBContext context) => _context = context;
-
     public Task<Product?> GetByIdAsync(int id, CancellationToken ct) =>
-        _context.Products.FirstOrDefaultAsync(p => p.Id == id, ct);
+        context.Products.FirstOrDefaultAsync(p => p.Id == id, ct);
 
-    public Task<Product?> GetByNameAsync(string name, CancellationToken ct) =>
-        _context.Products.FirstOrDefaultAsync(p => p.Name == name, ct);
-
+    /// <summary>Case-insensitive: "Pechuga" and "pechuga" are the same product.</summary>
+    public Task<bool> NameExistsAsync(string name, int? excludeId, CancellationToken ct) =>
+        context.Products.AnyAsync(p => p.Name.ToLower() == name.ToLower() && (excludeId == null || p.Id != excludeId), ct);
 
     public async Task AddAsync(Product product, CancellationToken ct) =>
-        await _context.Products.AddAsync(product, ct);
+        await context.Products.AddAsync(product, ct);
 
-    public void Update(Product product) => _context.Products.Update(product);
-
-    public async Task<List<Product>> GetAllAsync(CancellationToken ct) =>
-        await _context.Products.ToListAsync(ct);
+    /// <summary>Admin list: active first, then by category and name.</summary>
+    public Task<List<Product>> GetAllAsync(CancellationToken ct) =>
+        context.Products.AsNoTracking()
+            .OrderByDescending(p => p.IsActive).ThenBy(p => p.Category).ThenBy(p => p.Name)
+            .ToListAsync(ct);
 
     public Task<List<Product>> GetActiveAsync(CancellationToken ct) =>
-        _context.Products.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Category).ThenBy(p => p.Name).ToListAsync(ct);
+        context.Products.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Category).ThenBy(p => p.Name).ToListAsync(ct);
 
     public Task<List<Product>> GetActiveByIdsAsync(IReadOnlyCollection<int> ids, CancellationToken ct) =>
-        _context.Products.AsNoTracking().Where(p => p.IsActive && ids.Contains(p.Id)).ToListAsync(ct);
+        context.Products.AsNoTracking().Where(p => p.IsActive && ids.Contains(p.Id)).ToListAsync(ct);
 
-    public Task SaveChangesAsync(CancellationToken ct) =>
-        _context.SaveChangesAsync(ct);
+    public Task SaveChangesAsync(CancellationToken ct) => context.SaveChangesAsync(ct);
 }

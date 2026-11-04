@@ -17,25 +17,16 @@ public static class CreateAdminCommand
 
     public static async Task<int> RunAsync(IServiceProvider services, string[] args)
     {
-        var username = Option(args, "--username");
-        var fullName = Option(args, "--name") ?? "Administrador";
+        var username = ConsoleInput.Option(args, "--username");
+        var fullName = ConsoleInput.Option(args, "--name") ?? "Administrador";
         if (string.IsNullOrWhiteSpace(username))
         {
             Console.Error.WriteLine("Uso: create-admin --username <usuario> [--name \"Nombre completo\"]");
             return 2;
         }
 
-        var password = ReadPassword("Contraseña (mínimo 8 caracteres): ");
-        if (password.Length < 8)
-        {
-            Console.Error.WriteLine("La contraseña debe tener al menos 8 caracteres.");
-            return 2;
-        }
-        if (!Console.IsInputRedirected && ReadPassword("Repite la contraseña: ") != password)
-        {
-            Console.Error.WriteLine("Las contraseñas no coinciden.");
-            return 2;
-        }
+        var password = ConsoleInput.ReadNewPassword();
+        if (password is null) return 2;
 
         using var scope = services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
@@ -61,29 +52,5 @@ public static class CreateAdminCommand
             Console.Error.WriteLine(ex.Message);
             return 2;
         }
-    }
-
-    private static string? Option(string[] args, string name)
-    {
-        var i = Array.IndexOf(args, name);
-        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
-    }
-
-    /// <summary>Reads a line without echoing it; falls back to a plain line when input is piped.</summary>
-    private static string ReadPassword(string prompt)
-    {
-        if (Console.IsInputRedirected) return Console.ReadLine() ?? string.Empty;
-
-        Console.Write(prompt);
-        var chars = new List<char>();
-        while (true)
-        {
-            var key = Console.ReadKey(intercept: true);
-            if (key.Key == ConsoleKey.Enter) break;
-            if (key.Key == ConsoleKey.Backspace) { if (chars.Count > 0) chars.RemoveAt(chars.Count - 1); continue; }
-            if (!char.IsControl(key.KeyChar)) chars.Add(key.KeyChar);
-        }
-        Console.WriteLine();
-        return new string(chars.ToArray());
     }
 }

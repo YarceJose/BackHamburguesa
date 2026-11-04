@@ -35,6 +35,10 @@ public static class ErrorCodes
     public const string SectorNameTaken = "sector.name_taken";
 
     public const string ProductNotFound = "product.not_found";
+    public const string ProductNameRequired = "product.name_required";
+    public const string ProductNameTaken = "product.name_taken";
+    public const string ProductInvalidPrice = "product.invalid_price";
+    public const string ProductImageInvalid = "product.image_invalid";
 
     public const string OrderNotFound = "order.not_found";
     public const string OrderEmpty = "order.empty";

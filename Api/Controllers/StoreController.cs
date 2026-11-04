@@ -25,6 +25,16 @@ public class StoreController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<List<MenuProductResponse>>> Menu(CancellationToken ct) =>
         Ok(await mediator.Send(new GetMenuQuery(), ct));
 
+    /// <summary>Picture uploaded by the admin. The ?v= in the URL changes with every new picture, so it can be cached.</summary>
+    [HttpGet("products/{id:int}/image")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = 86400)]
+    public async Task<IActionResult> ProductImage(int id, CancellationToken ct)
+    {
+        var file = await mediator.Send(new GetProductImageQuery(id), ct);
+        return File(file.Content, file.ContentType);
+    }
+
     /// <summary>Active delivery sectors (veredas, barrios). The customer can also write "Otro".</summary>
     [HttpGet("sectors")]
     [AllowAnonymous]

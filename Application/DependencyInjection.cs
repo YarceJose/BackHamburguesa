@@ -1,7 +1,6 @@
 using Application.Behaviors;
 using Application.Features.Users;
 using Application.Mediator;
-using Application.UseCases;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Application;
@@ -31,8 +30,6 @@ public static class DependencyInjection
         services.AddScoped<UserSessions>();
         services.AddScoped<Features.Store.StoreStatusReader>();
 
-        // Product use case (not migrated to the mediator yet)
-        services.AddScoped<CaseUseProduct>();
         return services;
     }
 }

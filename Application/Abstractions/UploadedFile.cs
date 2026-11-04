@@ -14,15 +14,16 @@ public static class UploadRules
     /// Accepts JPG, PNG, WEBP or PDF by their real signature (not by the name the client sends)
     /// and returns a buffered copy plus the extension to store.
     /// </summary>
-    public static async Task<(MemoryStream Content, string Extension)> ReadValidatedAsync(UploadedFile file, bool allowPdf, CancellationToken ct)
+    public static async Task<(MemoryStream Content, string Extension)> ReadValidatedAsync(
+        UploadedFile file, bool allowPdf, CancellationToken ct, string errorCode = ErrorCodes.ReceiptInvalid)
     {
         if (file.Length is <= 0 or > MaxBytes)
-            throw new BusinessRuleException(ErrorCodes.ReceiptInvalid, "The file must be between 1 byte and 5 MB.");
+            throw new BusinessRuleException(errorCode, "The file must be between 1 byte and 5 MB.");
 
         var buffer = new MemoryStream();
         await file.Content.CopyToAsync(buffer, ct);
         if (buffer.Length > MaxBytes)
-            throw new BusinessRuleException(ErrorCodes.ReceiptInvalid, "The file must be at most 5 MB.");
+            throw new BusinessRuleException(errorCode, "The file must be at most 5 MB.");
 
         var bytes = buffer.GetBuffer();
         string? extension =
@@ -33,7 +34,7 @@ public static class UploadRules
             null;
 
         if (extension is null)
-            throw new BusinessRuleException(ErrorCodes.ReceiptInvalid, allowPdf ? "Upload a JPG, PNG, WEBP or PDF file." : "Upload a JPG, PNG or WEBP image.");
+            throw new BusinessRuleException(errorCode, allowPdf ? "Upload a JPG, PNG, WEBP or PDF file." : "Upload a JPG, PNG or WEBP image.");
 
         buffer.Position = 0;
         return (buffer, extension);

@@ -55,7 +55,33 @@ public sealed record SectorRequest(
     [Range(0, 1000)] int SortOrder,
     bool IsActive = true);
 
-public sealed record MenuProductResponse(int Id, string Name, string? Category, string? Description, decimal Price, string? ImageUrl)
+/// <summary>
+/// ImageVersion is set when the admin uploaded a picture: the front loads it from
+/// /api/store/products/{id}/image?v={ImageVersion}. Otherwise ImageUrl (an external link) is used.
+/// </summary>
+public sealed record MenuProductResponse(
+    int Id, string Name, string? Category, string? Description, decimal Price, string? ImageUrl, long? ImageVersion)
 {
-    public static MenuProductResponse From(Product p) => new(p.Id, p.Name, p.Category, p.Description, p.Price, p.ImageUrl);
+    public static MenuProductResponse From(Product p) =>
+        new(p.Id, p.Name, p.Category, p.Description, p.Price, p.ImageUrl, ImageVersionOf(p));
+
+    internal static long? ImageVersionOf(Product p) => p.ImagePath is null ? null : p.UpdatedAt.Ticks;
 }
+
+/// <summary>Admin view of a product, including hidden ones.</summary>
+public sealed record AdminProductResponse(
+    int Id, string Name, string? Category, string? Description, decimal Price, string? ImageUrl, long? ImageVersion,
+    bool IsActive, DateTime UpdatedAt)
+{
+    public static AdminProductResponse From(Product p) =>
+        new(p.Id, p.Name, p.Category, p.Description, p.Price, p.ImageUrl, MenuProductResponse.ImageVersionOf(p),
+            p.IsActive, p.UpdatedAt);
+}
+
+public sealed record ProductRequest(
+    [Required, StringLength(150, MinimumLength = 2)] string Name,
+    [Range(typeof(decimal), "1", "10000000")] decimal Price,
+    [StringLength(40)] string? Category,
+    [StringLength(300)] string? Description,
+    [StringLength(500), Url] string? ImageUrl,
+    bool IsActive = true);

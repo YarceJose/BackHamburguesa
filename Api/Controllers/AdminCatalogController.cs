@@ -8,13 +8,42 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
-/// <summary>Admin: delivery sectors and payment accounts (QR).</summary>
+/// <summary>Admin: menu products, delivery sectors and payment accounts (QR).</summary>
 [ApiController]
 [Route("api/admin")]
 [Authorize(Policy = Policies.AdminOnly)]
 [Produces("application/json")]
 public class AdminCatalogController(IMediator mediator) : ControllerBase
 {
+    // ---------- Products ----------
+    /// <summary>Every product, including the ones hidden from the menu.</summary>
+    [HttpGet("products")]
+    public async Task<ActionResult<List<AdminProductResponse>>> Products(CancellationToken ct) =>
+        Ok(await mediator.Send(new GetAdminProductsQuery(), ct));
+
+    [HttpPost("products")]
+    public async Task<ActionResult<AdminProductResponse>> CreateProduct(ProductRequest request, CancellationToken ct) =>
+        Ok(await mediator.Send(new CreateProductCommand(request), ct));
+
+    /// <summary>Edits the product. IsActive=false hides it from the menu (past orders keep it).</summary>
+    [HttpPut("products/{id:int}")]
+    public async Task<ActionResult<AdminProductResponse>> UpdateProduct(int id, ProductRequest request, CancellationToken ct) =>
+        Ok(await mediator.Send(new UpdateProductCommand(id, request), ct));
+
+    /// <summary>The product picture (JPG, PNG or WEBP, max 5 MB). Replaces the previous one.</summary>
+    [HttpPost("products/{id:int}/image")]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<AdminProductResponse>> UploadProductImage(int id, IFormFile file, CancellationToken ct)
+    {
+        await using var stream = file.OpenReadStream();
+        return Ok(await mediator.Send(new UploadProductImageCommand(id, new UploadedFile(stream, file.Length)), ct));
+    }
+
+    [HttpDelete("products/{id:int}/image")]
+    public async Task<ActionResult<AdminProductResponse>> RemoveProductImage(int id, CancellationToken ct) =>
+        Ok(await mediator.Send(new RemoveProductImageCommand(id), ct));
+
     // ---------- Sectors ----------
     [HttpGet("sectors")]
     public async Task<ActionResult<List<SectorResponse>>> Sectors(CancellationToken ct) =>

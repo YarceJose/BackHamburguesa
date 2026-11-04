@@ -20,5 +20,6 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Category).HasMaxLength(40);
         builder.Property(p => p.Description).HasMaxLength(300);
         builder.Property(p => p.ImageUrl).HasMaxLength(500);
+        builder.Property(p => p.ImagePath).HasMaxLength(300);
     }
 }

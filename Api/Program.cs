@@ -225,10 +225,16 @@ public partial class Program
             // Migrations + store settings (users are never created from configuration)
             await DatabaseInitializer.InitializeAsync(app.Services);
 
-            // One-time console command: create an administrator in the database, then exit
-            if (args.FirstOrDefault() == CreateAdminCommand.Name)
+            // One-time console commands: run against the database, then exit (the web server is not started)
+            var command = args.FirstOrDefault();
+            if (command is not null && !command.StartsWith('-'))
             {
-                Environment.ExitCode = await CreateAdminCommand.RunAsync(app.Services, args);
+                Environment.ExitCode = command switch
+                {
+                    CreateAdminCommand.Name => await CreateAdminCommand.RunAsync(app.Services, args),
+                    ResetPasswordCommand.Name => await ResetPasswordCommand.RunAsync(app.Services, args),
+                    _ => UnknownCommand(command),
+                };
                 return;
             }
 
@@ -272,5 +278,11 @@ public partial class Program
         {
             await Log.CloseAndFlushAsync();
         }
+    }
+
+    private static int UnknownCommand(string command)
+    {
+        Console.Error.WriteLine($"Comando desconocido: '{command}'. Disponibles: {CreateAdminCommand.Name}, {ResetPasswordCommand.Name}.");
+        return 2;
     }
 }
